@@ -70,8 +70,13 @@ Structure rules:
   code. All business logic lives in the service layer (`Services/`), which is
   where unit tests target. The endpoint is only the HTTP edge.
 - **Inject dependencies by handler parameter** (same DI as a controller ctor).
-- **Use `TypedResults`** (not `Results`) for strongly-typed returns that feed
-  OpenAPI accurately and give automatic problem-details responses.
+- **Return concrete typed results, not `IResult`.** Use `TypedResults` (not
+  `Results`) and declare the concrete return type on the handler so response
+  metadata is inferred for OpenAPI automatically: `Ok` for a bodyless 200,
+  `Ok<T>` when there's a body, and `Results<Ok<T>, NotFound>` (etc.) for handlers
+  with multiple outcomes. Returning the `IResult` interface hides the status
+  codes and shapes from OpenAPI and forces manual `.Produces<T>(...)` annotations
+  — avoid it. (Concrete result types live in `Microsoft.AspNetCore.Http.HttpResults`.)
 - **`Program.cs` is a thin composition root:** register services + auth, then one
   `app.MapXxxEndpoints()` line per resource — no endpoint logic.
 

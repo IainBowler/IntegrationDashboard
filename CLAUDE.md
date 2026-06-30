@@ -35,7 +35,8 @@ database directly.
 
 - **Frontend:** Vite, React, TypeScript. Routing via react-router. Okta via
   `@okta/okta-react` + `@okta/okta-auth-js`.
-- **API:** .NET Core Web API (C#). JWT bearer auth validating Okta-issued tokens.
+- **API:** .NET Core Web API (C#), **minimal APIs** (see API design section).
+  JWT bearer auth validating Okta-issued tokens.
 - **Database:** SDK-style `Microsoft.Build.Sql` (.sqlproj), targeting Azure SQL.
   Schema is source-controlled and built into a DACPAC.
 
@@ -46,6 +47,46 @@ database directly.
 - No secrets in the frontend. No connection strings reach the client — all data
   access goes through the authenticated API.
 - Local secrets via .NET User Secrets; deployed secrets via Azure Key Vault.
+
+## API design
+
+The API uses **minimal APIs, NOT controllers**, organised for structure rather
+than dumped inline. Rationale: it's Microsoft's recommended default for new
+projects, has a leaner startup, and this project is small enough that
+controllers' scale benefits don't apply. The layered architecture (services hold
+the business logic) sits *behind* the HTTP edge and is independent of this
+choice — do not confuse "layered backend" with "needs controllers".
+
+Structure rules:
+- **One endpoint extension class per resource** in `Endpoints/`, exposing a
+  `MapXxxEndpoints(this IEndpointRouteBuilder)` method. Do NOT declare endpoints
+  inline in `Program.cs`.
+- **Route groups** (`MapGroup`) per resource: declare the shared prefix once and
+  apply shared concerns (`.RequireAuthorization()`, `.WithTags(...)`, endpoint
+  filters) to the whole group rather than per endpoint.
+- **Named static handler methods**, not inline lambdas — readable and debuggable,
+  and the `Map...` block reads as a table of contents for the resource.
+- **Thin handlers:** bind the request, call a service, map the result to a status
+  code. All business logic lives in the service layer (`Services/`), which is
+  where unit tests target. The endpoint is only the HTTP edge.
+- **Inject dependencies by handler parameter** (same DI as a controller ctor).
+- **Use `TypedResults`** (not `Results`) for strongly-typed returns that feed
+  OpenAPI accurately and give automatic problem-details responses.
+- **`Program.cs` is a thin composition root:** register services + auth, then one
+  `app.MapXxxEndpoints()` line per resource — no endpoint logic.
+
+Layout:
+```
+api/
+├── Program.cs            # composition root: DI, auth, one Map line per resource
+├── Endpoints/            # one MapXxxEndpoints class per resource
+├── Services/             # business logic + interfaces (unit-test target)
+└── Contracts/            # request/response DTOs
+```
+
+Walking-skeleton starting point: a single **unauthenticated** `GET /health`
+returning 200 in `Endpoints/HealthEndpoints.cs` — enough to deploy and prove the
+pipeline before auth or real resources exist.
 
 ## Deployment / CI-CD
 

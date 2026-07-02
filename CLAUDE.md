@@ -98,10 +98,15 @@ pipeline before auth or real resources exist.
 - **Frontend** deploys to Azure Static Web Apps (Free tier). Build config:
   `app_location: "frontend"`, `output_location: "dist"`, **API location left
   blank** (the API is a separate App Service, NOT a SWA managed function).
+  Workflow: `.github/workflows/azure-static-web-apps-victorious-forest-0f65e0003.yml`.
 - **API** deploys to Azure App Service (Basic B1, "Always On" enabled to avoid
-  cold starts). *Confirm this resource exists before finalising its workflow;
-  leave the workflow as a documented stub until then.*
-- **Database** deploys by publishing the DACPAC to Azure SQL.
+  cold starts) via OIDC workload identity — no publish profile, no basic auth.
+  Workflow: `.github/workflows/api-deploy.yml`.
+- **Database** deploys by publishing the DACPAC to Azure SQL via `azure/sql-action@v2.3`
+  using the same OIDC identity as the API. Runs on `windows-latest` (SqlPackage
+  is not available on ubuntu runners). Connection string stored in
+  `AZURE_SQL_CONNECTION_STRING` repo secret.
+  Workflow: `.github/workflows/database-deploy.yml`.
 - Each tier has its own workflow under `.github/workflows`, **path-filtered** so
   a change in one tier does not trigger the others. e.g. the frontend workflow
   filters on `frontend/**`, the API on `api/**`, the database on `database/**`.

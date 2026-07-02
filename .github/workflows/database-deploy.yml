@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build_and_deploy:
-    runs-on: ubuntu-latest  # switch to windows-latest if SqlPackage isn't found on the runner
+    runs-on: windows-latest  # ubuntu runners don't have SqlPackage; windows-latest includes it
     name: Build and Deploy
 
     steps:

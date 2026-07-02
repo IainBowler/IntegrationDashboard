@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build">
+  <Sdk Name="Microsoft.Build.Sql" Version="2.2.0" />
+  <PropertyGroup>
+    <Name>IntegrationDashboard.Database</Name>
+    <DSP>Microsoft.Data.Tools.Schema.Sql.SqlAzureV12DatabaseSchemaProvider</DSP>
+    <ModelCollation>1033, CI</ModelCollation>
+    <ProjectGuid>A36EFE84-2876-49DA-A627-094153884425</ProjectGuid>
+  </PropertyGroup>
+</Project>

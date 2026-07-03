@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'frontend/**'
+      - '.github/workflows/azure-static-web-apps-victorious-forest-0f65e0003.yml'
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:

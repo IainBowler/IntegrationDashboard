@@ -32,14 +32,14 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Test
-        run: dotnet test ./api.tests --configuration Release --no-restore --logger "trx" --results-directory ./test-results
+        run: dotnet test ./api.tests --configuration Release --logger "trx"
 
       - name: Publish test results
         uses: dorny/test-reporter@v1
         if: always()
         with:
           name: API Tests
-          path: ./test-results/*.trx
+          path: '**/TestResults/*.trx'
           reporter: dotnet-trx
 
       - name: Publish

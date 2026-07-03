@@ -1,0 +1,15 @@
+.page-view-badge {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  background: var(--border);
+  color: var(--text);
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-family: var(--mono);
+  letter-spacing: 0;
+  z-index: 100;
+  pointer-events: none;
+  user-select: none;
+}

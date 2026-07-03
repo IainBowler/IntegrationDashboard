@@ -93,6 +93,29 @@ Walking-skeleton starting point: a single **unauthenticated** `GET /health`
 returning 200 in `Endpoints/HealthEndpoints.cs` — enough to deploy and prove the
 pipeline before auth or real resources exist.
 
+## Features
+
+### Page view tracking
+Every page records a visit on mount and displays the running count for that
+page in a fixed badge at the bottom-right corner. This must be present on
+every page — it is not optional.
+
+Implementation:
+- `POST /page-visits` — records the visit (called on mount, fire-and-forget
+  with await before count fetch so the count includes the current visit).
+- `GET /page-visits/count?pagePath=<path>` — returns the count for that path.
+- `frontend/src/api/pageVisits.ts` — thin fetch wrappers for both calls.
+- `frontend/src/hooks/usePageVisits.ts` — calls POST then GET sequentially;
+  exposes `{ count: number | null }` (null while loading).
+- `frontend/src/components/PageViewBadge.tsx` — renders nothing while loading,
+  then shows `"{n} views"` in a fixed bottom-right pill.
+- Pages pass `window.location.pathname` as `pagePath`; when react-router is
+  added, use the router's `location.pathname` instead.
+- In production, the API base URL is set via the `VITE_API_BASE_URL`
+  environment variable (configured in Azure Static Web Apps → Configuration →
+  Application settings). Locally, set it in `frontend/.env.local`.
+  Tests hardcode `http://localhost:3000` via `vitest/config` `test.env`.
+
 ## Deployment / CI-CD
 
 - **Frontend** deploys to Azure Static Web Apps (Free tier). Build config:

@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'api/**'
+      - 'api.tests/**'
       - '.github/workflows/api-deploy.yml'
   workflow_dispatch:
 
@@ -28,6 +29,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Test
+        run: dotnet test ./api.tests --configuration Release --no-restore --logger "console;verbosity=normal"
 
       - name: Publish
         run: dotnet publish ./api -c Release -o ./publish

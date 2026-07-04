@@ -26,27 +26,58 @@ interview-site/
 └── README.md            # human-facing architecture overview
 ```
 
-Request flow: React SPA authenticates via Okta (OIDC), receives a token, and
-calls the API with an `Authorization: Bearer <token>` header. The API validates
-the JWT and serves data from Azure SQL. The frontend never talks to the
+Request flow: the SPA sends the browser to the API's `/auth/login/okta`; the
+API runs the OIDC authorization-code flow against Okta server-side, mints its
+own JWT, and hands it to the SPA via a one-time code. The SPA then calls the
+API with an `Authorization: Bearer <token>` header. The API validates its own
+JWT and serves data from Azure SQL. The frontend never talks to Okta or the
 database directly.
 
 ## Tech stack
 
-- **Frontend:** Vite, React, TypeScript. Routing via react-router. Okta via
-  `@okta/okta-react` + `@okta/okta-auth-js`.
+- **Frontend:** Vite, React, TypeScript. Routing via react-router. **No auth
+  SDK** — login is a full-page redirect to the API, which owns the OIDC flow.
 - **API:** .NET Core Web API (C#), **minimal APIs** (see API design section).
-  JWT bearer auth validating Okta-issued tokens.
+  OIDC confidential client to Okta; JWT bearer auth validating **API-minted**
+  HS256 tokens.
 - **Database:** SDK-style `Microsoft.Build.Sql` (.sqlproj), targeting Azure SQL.
   Schema is source-controlled and built into a DACPAC.
 
 ## Auth model
 
-- Okta OIDC. Frontend handles the login redirect and token acquisition.
-- API validates the JWT (issuer, audience, signature, expiry) on every request.
+**Server-side OIDC.** The API is the confidential client; the frontend has no
+Okta SDK and never sees Okta tokens.
+
+- Login: `GET /auth/login/{provider}` (full-page redirect) → Okta hosted login
+  → `GET /auth/callback/{provider}` on the API. The API exchanges the code with
+  Okta server-side (authorization code + PKCE, `state` validated via a
+  single-use store), calls `/v1/userinfo`, and upserts the user into
+  `dbo.[User]`.
+- Handoff: the callback redirects to the SPA's `/auth/callback` with a
+  60-second single-use code in the URL **fragment**; the SPA exchanges it at
+  `POST /auth/token` for tokens. Access tokens never appear in URLs.
+- Tokens: the API mints its **own** HS256 JWT (15 min, `Jwt:*` config) plus an
+  opaque refresh token (30 days, rotated on every `POST /auth/refresh`; only
+  SHA-256 hashes stored in `dbo.RefreshToken`; replaying a revoked token
+  revokes the user's whole token family). `POST /auth/logout` revokes.
+- Storage in the SPA: access JWT in memory only; refresh token in
+  `sessionStorage`. `authFetch` (`frontend/src/api/http.ts`) attaches the
+  bearer header and does a single-flight refresh + one retry on 401.
+- Extensibility: identity providers implement `IExternalAuthProvider`
+  (`api/Services/Auth/`); adding Google/Microsoft is one class + one DI
+  registration in Program.cs. Routes are provider-keyed (`/auth/login/google`).
+- Protected surface: `GET /auth/me`, `GET /page-visits/summary` (via
+  `.RequireAuthorization()`). Health and the page-visit record/count endpoints
+  stay public — the landing-page badge needs them.
+- One-time codes (OIDC state + SPA handoff) live in `IMemoryCache` — fine
+  single-instance; move to a shared store before scaling out.
 - No secrets in the frontend. No connection strings reach the client — all data
   access goes through the authenticated API.
-- Local secrets via .NET User Secrets; deployed secrets via Azure Key Vault.
+- Local secrets via .NET User Secrets (`Jwt:SigningKey`,
+  `Auth:Okta:ClientSecret`); deployed secrets via Azure Key Vault. Non-secret
+  auth config (`Jwt:Issuer/Audience`, `Auth:Okta:Issuer/ClientId`,
+  `Auth:FrontendBaseUrl`, `Auth:ApiBaseUrl`) lives in appsettings / App Service
+  configuration.
 
 ## API design
 
@@ -95,6 +126,16 @@ pipeline before auth or real resources exist.
 
 ## Features
 
+### Authentication & dashboard
+The landing page (`/`) is public. `/dashboard` is protected
+(`frontend/src/auth/ProtectedRoute.tsx`) and shows the signed-in user's profile
+(`GET /auth/me`) plus per-page visit totals (`GET /page-visits/summary`), with
+a sign-out button. Login is a redirect to the API (see Auth model); the SPA
+side lives in `frontend/src/auth/` (AuthContext bootstraps from the stored
+refresh token on load) and `frontend/src/pages/AuthCallbackPage.tsx` (handoff
+code exchange). `frontend/staticwebapp.config.json` provides the SPA fallback
+so these routes survive refresh/deep-link on Static Web Apps.
+
 ### Page view tracking
 Every page records a visit on mount and displays the running count for that
 page in a fixed badge at the bottom-right corner. This must be present on
@@ -109,8 +150,9 @@ Implementation:
   exposes `{ count: number | null }` (null while loading).
 - `frontend/src/components/PageViewBadge.tsx` — renders nothing while loading,
   then shows `"{n} views"` in a fixed bottom-right pill.
-- Pages pass `window.location.pathname` as `pagePath`; when react-router is
-  added, use the router's `location.pathname` instead.
+- `frontend/src/components/Layout.tsx` renders the badge once for all routed
+  pages using the router's `location.pathname`; `/auth/callback` sits outside
+  the Layout deliberately (transient page, no visit recorded).
 - In production, the API base URL is set via the `VITE_API_BASE_URL`
   environment variable (configured in Azure Static Web Apps → Configuration →
   Application settings). Locally, set it in `frontend/.env.local`.
@@ -194,7 +236,10 @@ PR and must pass before merge.
 - **Unit tests** for business logic in isolation — no I/O, fast.
 - **Integration tests** using `WebApplicationFactory<T>` to exercise the API
   in-memory through the real request pipeline (routing, model binding, auth
-  middleware), with auth stubbed via a test authentication handler.
+  middleware). Because the API validates its own HS256 JWTs from a config key,
+  tests mint **real tokens with a test signing key**
+  (`api.tests/Integration/TestAuth.cs`) and go through the actual JwtBearer
+  middleware — stronger than a stub authentication handler.
 - **Testcontainers for .NET** to spin up a real SQL Server container for
   data-layer integration tests — deploy the DACPAC into the container, run the
   tests against a real database, tear it down. This tests the actual schema and

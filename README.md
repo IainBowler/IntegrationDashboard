@@ -28,26 +28,32 @@ graph LR
     DB[(Azure SQL)]
 
     User -->|1 Load SPA| SWA
-    User -->|2 Login redirect| Okta
-    Okta -->|3 Token| User
-    User -->|4 Request + Bearer token| API
-    API -->|5 Validate JWT| API
-    API -->|6 Query| DB
+    User -->|2 GET /auth/login/okta| API
+    API -->|3 Redirect to hosted login| Okta
+    Okta -->|4 Callback with code| API
+    API -->|5 One-time handoff code| User
+    User -->|6 Exchange for API-minted JWT| API
+    User -->|7 Requests + Bearer token| API
+    API -->|8 Query| DB
 ```
 
-**Request flow:** the browser loads the static SPA from Azure Static Web Apps,
-the user authenticates against Okta via OIDC, and the SPA receives a token. Every
-API call carries that token in an `Authorization: Bearer` header. The API
-validates the JWT (issuer, audience, signature, expiry) on each request and
-serves data from Azure SQL. The frontend never touches the database directly and
-holds no secrets.
+**Request flow:** the browser loads the static SPA from Azure Static Web Apps.
+To sign in, the SPA redirects to the API, which runs the OIDC
+authorization-code flow against Okta **server-side** (confidential client,
+PKCE, single-use `state`). The API upserts the user, then hands the browser
+back to the SPA with a 60-second single-use code, which the SPA exchanges for
+an **API-minted** short-lived JWT and a rotating refresh token. Every API call
+carries the JWT in an `Authorization: Bearer` header; the API validates it
+(issuer, audience, signature, expiry) on each request and serves data from
+Azure SQL. The frontend never talks to Okta or the database directly and holds
+no secrets.
 
 ## Tech stack
 
 | Tier      | Technology                                                        |
 |-----------|-------------------------------------------------------------------|
-| Frontend  | Vite, React, TypeScript, react-router, `@okta/okta-react`         |
-| API       | .NET Core Web API (C#), JWT bearer authentication                 |
+| Frontend  | Vite, React, TypeScript, react-router (no auth SDK)               |
+| API       | .NET Core Web API (C#), OIDC client to Okta, JWT bearer auth      |
 | Database  | SDK-style `Microsoft.Build.Sql` project (.sqlproj), Azure SQL     |
 | Auth      | Okta (OIDC / OAuth 2.0)                                            |
 | Hosting   | Azure Static Web Apps (frontend), Azure App Service (API)         |
@@ -67,15 +73,28 @@ holds no secrets.
 
 ## Authentication
 
-Authentication uses the standard OIDC authorization-code flow via Okta:
+Authentication is **server-side OIDC**: the API is the confidential client and
+the frontend carries no Okta SDK or secrets.
 
-1. The SPA redirects unauthenticated users to Okta to sign in.
-2. Okta returns tokens to the SPA, which stores them and guards protected routes.
-3. The SPA attaches the access token as a bearer token on every API request.
-4. The API validates the token on each request and authorizes accordingly.
+1. The SPA sends the browser to `GET /auth/login/okta` on the API, which
+   redirects to Okta's hosted login (authorization code + PKCE, single-use
+   `state`).
+2. Okta calls back to the API, which exchanges the code server-side, upserts
+   the user, and redirects to the SPA with a 60-second single-use handoff code
+   in the URL fragment.
+3. The SPA exchanges the handoff code at `POST /auth/token` for a short-lived
+   **API-minted** JWT (in memory) and an opaque refresh token
+   (sessionStorage, rotated on every refresh, only hashes stored server-side —
+   replaying a revoked token revokes the user's whole token family).
+4. Every API request carries the JWT as a bearer token; the API validates it on
+   each request. On 401 the SPA silently refreshes once and retries.
 
-The API is **stateless** — it trusts only a valid, signed token, holds no session
-state, and can scale horizontally without sticky sessions.
+Identity providers sit behind an `IExternalAuthProvider` abstraction, so adding
+Google or Microsoft login is a single class plus one DI registration — the
+login/callback/token flow is provider-agnostic.
+
+Request authentication is stateless JWT validation; refresh tokens and users
+are the only server-side auth state, held in Azure SQL.
 
 ## Testing
 

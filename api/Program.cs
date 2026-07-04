@@ -9,9 +9,11 @@ builder.Services.AddTransient<IPageVisitService>(_ =>
         builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty));
 
 const string CorsPolicy = "Frontend";
+var allowedOrigins = (builder.Configuration["AllowedOrigins"] ?? "")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(options =>
     options.AddPolicy(CorsPolicy, policy =>
-        policy.WithOrigins(builder.Configuration["AllowedOrigins"] ?? "")
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyMethod()
               .AllowAnyHeader()));
 

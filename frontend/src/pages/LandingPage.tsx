@@ -1,12 +1,15 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import { PageViewBadge } from './components/PageViewBadge'
-import './App.css'
+import { Link } from 'react-router'
+import reactLogo from '../assets/react.svg'
+import viteLogo from '../assets/vite.svg'
+import heroImg from '../assets/hero.png'
+import { getLoginUrl } from '../api/authClient'
+import { useAuth } from '../auth/useAuth'
+import '../App.css'
 
-function App() {
+export function LandingPage() {
   const [count, setCount] = useState(0)
+  const { isAuthenticated } = useAuth()
 
   return (
     <>
@@ -19,7 +22,7 @@ function App() {
         <div>
           <h1>Get started</h1>
           <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
+            Edit <code>src/pages/LandingPage.tsx</code> and save to test <code>HMR</code>
           </p>
         </div>
         <button
@@ -29,6 +32,13 @@ function App() {
         >
           Count is {count}
         </button>
+        <div className="auth-cta">
+          {isAuthenticated ? (
+            <Link to="/dashboard">Go to dashboard</Link>
+          ) : (
+            <a href={getLoginUrl()}>Sign in with Okta</a>
+          )}
+        </div>
       </section>
 
       <div className="ticks"></div>
@@ -116,9 +126,6 @@ function App() {
 
       <div className="ticks"></div>
       <section id="spacer"></section>
-      <PageViewBadge pagePath={window.location.pathname} />
     </>
   )
 }
-
-export default App

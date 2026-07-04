@@ -182,3 +182,41 @@
     border-right-color: var(--border);
   }
 }
+
+.auth-cta {
+  margin-bottom: 24px;
+
+  a {
+    color: var(--accent);
+  }
+}
+
+.auth-callback {
+  max-width: 720px;
+  margin: 48px auto;
+  text-align: center;
+}
+
+.dashboard {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px;
+
+  .dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th,
+  td {
+    text-align: left;
+    padding: 6px 12px 6px 0;
+    border-bottom: 1px solid var(--accent-border);
+  }
+}

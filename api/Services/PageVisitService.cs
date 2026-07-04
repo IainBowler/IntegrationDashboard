@@ -1,3 +1,4 @@
+using Api.Contracts;
 using Dapper;
 using Microsoft.Data.SqlClient;
 
@@ -19,5 +20,18 @@ public class PageVisitService(string connectionString) : IPageVisitService
         return await conn.ExecuteScalarAsync<long>(
             "SELECT COUNT_BIG(*) FROM dbo.PageVisit WHERE PagePath = @PagePath",
             new { PagePath = pagePath });
+    }
+
+    public async Task<IReadOnlyList<PageVisitSummaryItem>> GetSummaryAsync()
+    {
+        await using var conn = new SqlConnection(connectionString);
+        var rows = await conn.QueryAsync<PageVisitSummaryItem>(
+            """
+            SELECT PagePath, COUNT_BIG(*) AS Count
+            FROM dbo.PageVisit
+            GROUP BY PagePath
+            ORDER BY COUNT_BIG(*) DESC
+            """);
+        return rows.ToList();
     }
 }

@@ -12,6 +12,7 @@ public static class PageVisitEndpoints
 
         group.MapPost("/", RecordVisit).WithName("RecordPageVisit");
         group.MapGet("/count", GetVisitCount).WithName("GetPageVisitCount");
+        group.MapGet("/summary", GetSummary).WithName("GetPageVisitSummary").RequireAuthorization();
 
         return routes;
     }
@@ -30,5 +31,12 @@ public static class PageVisitEndpoints
     {
         var count = await service.GetVisitCountAsync(pagePath);
         return TypedResults.Ok(new PageVisitCountResponse(count));
+    }
+
+    private static async Task<Ok<PageVisitSummaryResponse>> GetSummary(
+        IPageVisitService service)
+    {
+        var pages = await service.GetSummaryAsync();
+        return TypedResults.Ok(new PageVisitSummaryResponse(pages));
     }
 }

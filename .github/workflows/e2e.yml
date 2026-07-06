@@ -1,0 +1,96 @@
+name: E2E
+
+# End-to-end: real browser -> real SPA -> real API -> real SQL Server, with
+# only the external IdP replaced by the API's gated test provider (no Okta
+# credentials in CI). Spans all three tiers, so it triggers on any of them.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - 'api/**'
+      - 'database/**'
+      - '.github/workflows/e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    name: Playwright E2E
+
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          # throwaway password for an ephemeral CI container — not a secret
+          MSSQL_SA_PASSWORD: 'E2e_Passw0rd!'
+        ports:
+          - 1433:1433
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build DACPAC
+        run: dotnet build ./database
+
+      - name: Install SqlPackage
+        run: dotnet tool install --global microsoft.sqlpackage
+
+      - name: Deploy schema to SQL container
+        run: |
+          for i in $(seq 1 12); do
+            if sqlpackage /Action:Publish \
+              /SourceFile:database/bin/Debug/IntegrationDashboard.Database.dacpac \
+              "/TargetConnectionString:Server=localhost,1433;Database=IntegrationDashboardE2E;User Id=sa;Password=E2e_Passw0rd!;TrustServerCertificate=True;Encrypt=False"; then
+              exit 0
+            fi
+            echo "SQL Server not ready yet (attempt $i), retrying in 10s..."
+            sleep 10
+          done
+          echo "SQL Server never became ready" && exit 1
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      - name: Run E2E tests
+        run: npx playwright test
+        working-directory: frontend
+
+      - name: Publish E2E results
+        uses: dorny/test-reporter@v2
+        if: success() || failure()
+        with:
+          name: E2E tests
+          path: frontend/test-results/e2e-junit.xml
+          reporter: java-junit
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7

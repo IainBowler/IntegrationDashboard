@@ -23,6 +23,12 @@ builder.Services.AddSingleton<IOneTimeCodeStore, MemoryOneTimeCodeStore>();
 builder.Services.AddSingleton<ITokenService, JwtTokenService>();
 builder.Services.AddHttpClient<OktaAuthProvider>();
 builder.Services.AddTransient<IExternalAuthProvider>(sp => sp.GetRequiredService<OktaAuthProvider>());
+// e2e-only fake IdP: both conditions must hold so it can never exist in production
+if (builder.Environment.IsDevelopment()
+    && builder.Configuration.GetValue<bool>("Auth:EnableTestProvider"))
+{
+    builder.Services.AddTransient<IExternalAuthProvider, TestAuthProvider>();
+}
 builder.Services.AddTransient<IUserService>(_ =>
     new UserService(
         builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty));

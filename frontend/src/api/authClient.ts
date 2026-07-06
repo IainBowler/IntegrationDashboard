@@ -14,7 +14,10 @@ export interface TokenResponse {
   user: AuthUser
 }
 
-export function getLoginUrl(provider: string = 'okta'): string {
+// e2e runs override this to 'test' to use the API's gated test provider
+const DEFAULT_PROVIDER = import.meta.env.VITE_AUTH_PROVIDER ?? 'okta'
+
+export function getLoginUrl(provider: string = DEFAULT_PROVIDER): string {
   return `${API_BASE}/auth/login/${provider}`
 }
 

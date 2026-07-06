@@ -66,6 +66,11 @@ Okta SDK and never sees Okta tokens.
 - Extensibility: identity providers implement `IExternalAuthProvider`
   (`api/Services/Auth/`); adding Google/Microsoft is one class + one DI
   registration in Program.cs. Routes are provider-keyed (`/auth/login/google`).
+- E2E test provider: `TestAuthProvider` ("test") bounces straight back to the
+  API callback with no external IdP, so Playwright can run the full login flow
+  without Okta credentials. Registered ONLY when environment is Development
+  AND `Auth:EnableTestProvider=true` — it must never exist in production
+  (gating covered by `api.tests/Integration/TestProviderGatingTests.cs`).
 - Protected surface: `GET /auth/me`, `GET /page-visits/summary` (via
   `.RequireAuthorization()`). Health and the page-visit record/count endpoints
   stay public — the landing-page badge needs them.
@@ -225,8 +230,13 @@ PR and must pass before merge.
   the user sees, not implementation details.
 - **MSW (Mock Service Worker)** to mock API responses in component/integration
   tests, so the UI can be tested without a live backend.
-- **Playwright** for a small set of end-to-end tests covering critical paths
-  (login redirect, protected route, dashboard renders data).
+- **Playwright** (`frontend/e2e/`, `npm run test:e2e`) for end-to-end tests of
+  the critical paths: public landing + badge, protected-route redirect, and
+  the full login journey (sign-in → dashboard → reload survives → logout)
+  using the API's gated test provider instead of real Okta. The
+  `playwright.config.ts` webServer block boots both the API and the Vite dev
+  server; the API needs a reachable SQL Server (CI provides a service
+  container via `.github/workflows/e2e.yml`; locally set `E2E_SQL_CONNECTION`).
 - Coverage via Vitest's built-in (v8) reporter.
 
 ### API (`api/`)

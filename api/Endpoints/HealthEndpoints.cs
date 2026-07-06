@@ -11,6 +11,10 @@ public static class HealthEndpoints
 
         group.MapGet("/", Handle).WithName("GetHealth");
 
+        // App Service "Always On" pings the site root every 5 minutes and its
+        // path is not configurable; without this route every ping logs a 404.
+        routes.MapGet("/", Handle).WithName("GetRoot").WithTags("Health");
+
         return routes;
     }
 

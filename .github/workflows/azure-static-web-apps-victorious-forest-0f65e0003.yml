@@ -20,6 +20,10 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy Job
+    permissions:
+      contents: read
+      checks: write        # test-reporter publishes a check run with per-test results
+      pull-requests: write # SWA deploy posts PR comments
     steps:
       - uses: actions/checkout@v3
         with:
@@ -35,8 +39,15 @@ jobs:
         run: npm ci
         working-directory: frontend
       - name: Test
-        run: npm test
+        run: npm test -- --reporter=default --reporter=junit --outputFile=test-results/junit.xml
         working-directory: frontend
+      - name: Publish test results
+        uses: dorny/test-reporter@v2
+        if: success() || failure() # publish results even when tests fail
+        with:
+          name: Frontend tests
+          path: frontend/test-results/junit.xml
+          reporter: java-junit
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1

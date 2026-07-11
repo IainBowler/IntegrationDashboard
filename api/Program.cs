@@ -3,6 +3,7 @@ using Api.Endpoints;
 using Api.Options;
 using Api.Services;
 using Api.Services.Auth;
+using Api.Services.IntegrationCalls;
 using Api.Services.Integrations;
 using Api.Services.Integrations.Salesforce;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -40,11 +41,20 @@ builder.Services.AddTransient<IRefreshTokenService>(sp =>
         sp.GetRequiredService<IOptions<AuthOptions>>().Value.RefreshTokenDays));
 builder.Services.AddTransient<IAuthFlowService, AuthFlowService>();
 
+builder.Services.AddTransient<IIntegrationCallService>(_ =>
+    new IntegrationCallService(
+        builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty));
+builder.Services.AddSingleton<IIntegrationCallRecorder, IntegrationCallRecorder>();
+
 builder.Services.Configure<SalesforceOptions>(builder.Configuration.GetSection("Salesforce"));
 builder.Services.AddHttpClient<ISalesforceTokenProvider, SalesforceTokenProvider>(
-    client => client.Timeout = TimeSpan.FromSeconds(30));
+        client => client.Timeout = TimeSpan.FromSeconds(30))
+    .AddHttpMessageHandler(sp => new IntegrationCallRecordingHandler(
+        sp.GetRequiredService<IIntegrationCallRecorder>(), "salesforce"));
 builder.Services.AddHttpClient<SalesforceConnector>(
-    client => client.Timeout = TimeSpan.FromSeconds(30));
+        client => client.Timeout = TimeSpan.FromSeconds(30))
+    .AddHttpMessageHandler(sp => new IntegrationCallRecordingHandler(
+        sp.GetRequiredService<IIntegrationCallRecorder>(), "salesforce"));
 builder.Services.AddTransient<IIntegrationConnector>(sp => sp.GetRequiredService<SalesforceConnector>());
 
 var signingKey = builder.Configuration["Jwt:SigningKey"] ?? "";

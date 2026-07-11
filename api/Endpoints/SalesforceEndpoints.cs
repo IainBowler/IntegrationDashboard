@@ -10,7 +10,8 @@ public static class SalesforceEndpoints
     {
         var group = routes.MapGroup("/api/integrations/salesforce")
             .WithTags("Salesforce")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .AddEndpointFilter(new IntegrationCallRecordingFilter("salesforce"));
 
         group.MapGet("/auth", CheckAuth).WithName("CheckSalesforceAuth");
         group.MapGet("/accounts", GetAccounts).WithName("GetSalesforceAccounts");

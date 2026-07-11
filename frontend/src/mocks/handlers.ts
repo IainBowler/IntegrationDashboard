@@ -56,6 +56,29 @@ export const handlers = [
     return HttpResponse.json(mockUser)
   }),
 
+  http.get(`${API_BASE}/api/integrations/salesforce/auth`, ({ request }) => {
+    if (!hasBearerToken(request)) {
+      return new HttpResponse(null, { status: 401 })
+    }
+    return new HttpResponse(null, { status: 200 })
+  }),
+
+  http.get(`${API_BASE}/api/integrations/salesforce/accounts`, ({ request }) => {
+    if (!hasBearerToken(request)) {
+      return new HttpResponse(null, { status: 401 })
+    }
+    return HttpResponse.json([
+      {
+        id: '001A',
+        name: 'Acme',
+        industry: 'Technology',
+        type: 'Customer - Direct',
+        website: 'https://acme.example',
+        lastModifiedDate: '2026-07-01T12:34:56+00:00',
+      },
+    ])
+  }),
+
   http.get(`${API_BASE}/page-visits/summary`, ({ request }) => {
     if (!hasBearerToken(request)) {
       return new HttpResponse(null, { status: 401 })

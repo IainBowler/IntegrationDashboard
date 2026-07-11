@@ -50,11 +50,14 @@ public class SalesforceEndpointsTests : IClassFixture<WebApplicationFactory<Prog
         _factory = factory;
     }
 
-    private HttpClient CreateClient(StubHttpHandler handler)
+    private HttpClient CreateClient(StubHttpHandler handler, ISalesforceTokenProvider? tokenProvider = null)
     {
-        var tokenProvider = Substitute.For<ISalesforceTokenProvider>();
-        tokenProvider.GetSessionAsync(Arg.Any<CancellationToken>())
-            .Returns(new SalesforceSession("sf-access-token", "https://myorg.my.salesforce.com"));
+        if (tokenProvider is null)
+        {
+            tokenProvider = Substitute.For<ISalesforceTokenProvider>();
+            tokenProvider.GetSessionAsync(Arg.Any<CancellationToken>())
+                .Returns(new SalesforceSession("sf-access-token", "https://myorg.my.salesforce.com"));
+        }
         return _factory.WithAuthSettings()
             .WithWebHostBuilder(b => b.ConfigureServices(s =>
             {
@@ -127,6 +130,48 @@ public class SalesforceEndpointsTests : IClassFixture<WebApplicationFactory<Prog
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         problem!.Title.Should().Be("Salesforce request failed");
         problem.Status.Should().Be(StatusCodes.Status502BadGateway);
+    }
+
+    [Fact(DisplayName = "GET /api/integrations/salesforce/auth 401s without a token")]
+    public async Task Auth_WithoutToken_ReturnsUnauthorized()
+    {
+        var handler = new StubHttpHandler(_ => throw new InvalidOperationException("must not be reached"));
+        var client = CreateClient(handler);
+
+        var response = await client.SendAsync(Get("/api/integrations/salesforce/auth"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact(DisplayName = "GET /api/integrations/salesforce/auth returns 200 when a Salesforce session is established")]
+    public async Task Auth_WhenSessionEstablished_ReturnsOk()
+    {
+        var handler = new StubHttpHandler(_ => throw new InvalidOperationException("must not be reached"));
+        var client = CreateClient(handler);
+
+        var response = await client.SendAsync(
+            Get("/api/integrations/salesforce/auth", TestAuth.MintAccessToken()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact(DisplayName = "GET /api/integrations/salesforce/auth surfaces a failed exchange as a 502 ProblemDetails")]
+    public async Task Auth_WhenExchangeFails_Returns502Problem()
+    {
+        var handler = new StubHttpHandler(_ => throw new InvalidOperationException("must not be reached"));
+        var tokenProvider = Substitute.For<ISalesforceTokenProvider>();
+        tokenProvider.GetSessionAsync(Arg.Any<CancellationToken>())
+            .Returns<SalesforceSession>(_ => throw new SalesforceApiException(
+                SalesforceFailure.AuthFailed, "Salesforce token exchange failed: invalid_grant"));
+        var client = CreateClient(handler, tokenProvider);
+
+        var response = await client.SendAsync(
+            Get("/api/integrations/salesforce/auth", TestAuth.MintAccessToken()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem!.Title.Should().Be("Salesforce request failed");
+        problem.Detail.Should().Contain("invalid_grant");
     }
 
     [Fact(DisplayName = "a Salesforce timeout surfaces as a 504 ProblemDetails")]

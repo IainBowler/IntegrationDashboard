@@ -33,6 +33,19 @@ describe('DashboardPage', () => {
     expect(screen.getByText('5')).toBeInTheDocument()
   })
 
+  it('lists the integrations with a details button that opens the integration page', async () => {
+    renderDashboard()
+
+    const integrationsSection = await screen.findByRole('region', { name: 'Integrations' })
+    expect(integrationsSection).toHaveTextContent('Salesforce')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Details' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Salesforce integration' }),
+    ).toBeInTheDocument()
+  })
+
   it('signs the user out and returns to the landing page', async () => {
     renderDashboard()
     const signOutButton = await screen.findByRole('button', { name: 'Sign out' })

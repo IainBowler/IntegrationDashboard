@@ -3,6 +3,7 @@ import { ProtectedRoute } from './auth/ProtectedRoute'
 import { Layout } from './components/Layout'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { IntegrationDetailPage } from './pages/IntegrationDetailPage'
 import { LandingPage } from './pages/LandingPage'
 
 export function AppRoutes() {
@@ -12,6 +13,7 @@ export function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/integrations/:name" element={<IntegrationDetailPage />} />
         </Route>
       </Route>
       {/* outside Layout: a transient page that shouldn't record a visit */}

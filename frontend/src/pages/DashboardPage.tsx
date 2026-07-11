@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { getMe, getPageVisitSummary } from '../api/dashboard'
 import type { PageVisitSummaryItem } from '../api/dashboard'
+import { integrations } from '../api/integrations'
 import type { AuthUser } from '../api/authClient'
 import { useAuth } from '../auth/useAuth'
 import '../App.css'
@@ -45,6 +46,24 @@ export function DashboardPage() {
         ) : (
           <p>Loading profile…</p>
         )}
+      </section>
+
+      <section aria-label="Integrations">
+        <h2>Integrations</h2>
+        <ul>
+          {integrations.map((integration) => (
+            <li key={integration.name}>
+              {integration.label}{' '}
+              <button
+                type="button"
+                className="counter"
+                onClick={() => navigate(`/integrations/${integration.name}`)}
+              >
+                Details
+              </button>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section aria-label="Page views">

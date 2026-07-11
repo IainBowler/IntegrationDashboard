@@ -34,7 +34,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         return (client, flow);
     }
 
-    [Fact]
+    [Fact(DisplayName = "GET /auth/login/{provider} 404s for an unknown provider")]
     public async Task BeginLogin_UnknownProvider_ReturnsNotFound()
     {
         var (client, flow) = CreateClientWithFlowSubstitute();
@@ -45,7 +45,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    [Fact]
+    [Fact(DisplayName = "GET /auth/login redirects to the provider's authorization URL")]
     public async Task BeginLogin_KnownProvider_RedirectsToAuthorizationUrl()
     {
         var (client, flow) = CreateClientWithFlowSubstitute();
@@ -57,7 +57,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         response.Headers.Location!.ToString().Should().Be("https://idp.example/authorize?state=abc");
     }
 
-    [Fact]
+    [Fact(DisplayName = "the real Okta redirect carries state, PKCE challenge, and client id")]
     public async Task BeginLogin_WithRealOktaProvider_RedirectsToOktaWithOidcParameters()
     {
         // no service substitution: exercises the real flow service, provider,
@@ -82,7 +82,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         location.Should().Contain(Uri.EscapeDataString($"{TestAuth.ApiBaseUrl}/auth/callback/okta"));
     }
 
-    [Fact]
+    [Fact(DisplayName = "a successful callback redirects to the SPA with the handoff code in the fragment")]
     public async Task Callback_Success_RedirectsToSpaWithHandoffCodeInFragment()
     {
         var (client, flow) = CreateClientWithFlowSubstitute();
@@ -95,7 +95,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
             $"{TestAuth.FrontendBaseUrl}/auth/callback#code=handoff-1");
     }
 
-    [Fact]
+    [Fact(DisplayName = "a failed callback still lands the user on the SPA, with an error fragment")]
     public async Task Callback_FlowFailure_RedirectsToSpaWithError()
     {
         var (client, flow) = CreateClientWithFlowSubstitute();
@@ -108,7 +108,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
             $"{TestAuth.FrontendBaseUrl}/auth/callback#error=login_failed");
     }
 
-    [Fact]
+    [Fact(DisplayName = "a callback without code or state errors out without running the flow")]
     public async Task Callback_MissingCodeOrState_RedirectsToSpaWithErrorWithoutCallingFlow()
     {
         var (client, flow) = CreateClientWithFlowSubstitute();
@@ -120,7 +120,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         await flow.DidNotReceiveWithAnyArgs().HandleCallbackAsync(default!, default!, default!, default);
     }
 
-    [Fact]
+    [Fact(DisplayName = "POST /auth/token exchanges a valid handoff code for tokens")]
     public async Task ExchangeToken_ValidCode_ReturnsTokens()
     {
         var (client, flow) = CreateClientWithFlowSubstitute();
@@ -135,7 +135,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         body.Should().Be(tokens);
     }
 
-    [Fact]
+    [Fact(DisplayName = "POST /auth/token 401s for an invalid handoff code")]
     public async Task ExchangeToken_InvalidCode_ReturnsUnauthorized()
     {
         var (client, flow) = CreateClientWithFlowSubstitute();
@@ -146,7 +146,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    [Fact]
+    [Fact(DisplayName = "POST /auth/refresh returns a rotated token pair")]
     public async Task Refresh_ValidToken_ReturnsRotatedTokens()
     {
         var (client, flow) = CreateClientWithFlowSubstitute();
@@ -161,7 +161,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         body!.RefreshToken.Should().Be("new-refresh");
     }
 
-    [Fact]
+    [Fact(DisplayName = "POST /auth/refresh 401s for a stale token")]
     public async Task Refresh_InvalidToken_ReturnsUnauthorized()
     {
         var (client, flow) = CreateClientWithFlowSubstitute();
@@ -172,7 +172,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    [Fact]
+    [Fact(DisplayName = "POST /auth/logout revokes the session and returns 204")]
     public async Task Logout_ReturnsNoContentAndRevokes()
     {
         var (client, flow) = CreateClientWithFlowSubstitute();
@@ -183,7 +183,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         await flow.Received(1).LogoutAsync("refresh-raw");
     }
 
-    [Fact]
+    [Fact(DisplayName = "the full login flow works end to end: login, callback, handoff, bearer call")]
     public async Task FullLoginFlow_FromLoginToProtectedEndpoint_Succeeds()
     {
         // Real flow service, token service, and one-time code store; only the

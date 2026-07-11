@@ -38,7 +38,7 @@ public class ProtectedEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         return request;
     }
 
-    [Fact]
+    [Fact(DisplayName = "GET /auth/me 401s without a token")]
     public async Task Me_WithoutToken_ReturnsUnauthorized()
     {
         var (client, _) = CreateClient();
@@ -48,7 +48,7 @@ public class ProtectedEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    [Fact]
+    [Fact(DisplayName = "GET /auth/me 401s for a malformed token")]
     public async Task Me_WithGarbageToken_ReturnsUnauthorized()
     {
         var (client, _) = CreateClient();
@@ -58,7 +58,7 @@ public class ProtectedEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    [Fact]
+    [Fact(DisplayName = "GET /auth/me 401s for an expired token")]
     public async Task Me_WithExpiredToken_ReturnsUnauthorized()
     {
         var (client, _) = CreateClient();
@@ -69,7 +69,7 @@ public class ProtectedEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    [Fact]
+    [Fact(DisplayName = "GET /auth/me 401s for a token signed with the wrong key")]
     public async Task Me_WithTokenSignedByWrongKey_ReturnsUnauthorized()
     {
         var (client, _) = CreateClient();
@@ -80,7 +80,7 @@ public class ProtectedEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    [Fact]
+    [Fact(DisplayName = "GET /auth/me returns the caller's claims for a valid token")]
     public async Task Me_WithValidToken_ReturnsClaims()
     {
         var (client, _) = CreateClient();
@@ -93,7 +93,7 @@ public class ProtectedEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         body.Should().Be(new UserResponse(42, "okta", "user@example.com", "Test User"));
     }
 
-    [Fact]
+    [Fact(DisplayName = "GET /page-visits/summary 401s without a token")]
     public async Task Summary_WithoutToken_ReturnsUnauthorized()
     {
         var (client, _) = CreateClient();
@@ -103,7 +103,7 @@ public class ProtectedEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    [Fact]
+    [Fact(DisplayName = "GET /page-visits/summary returns per-page counts for a valid token")]
     public async Task Summary_WithValidToken_ReturnsPerPageCounts()
     {
         var (client, pageVisits) = CreateClient();
@@ -123,7 +123,7 @@ public class ProtectedEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         body.Pages[1].Should().Be(new PageVisitSummaryItem("/dashboard", 5));
     }
 
-    [Fact]
+    [Fact(DisplayName = "health and page-visit endpoints stay anonymous")]
     public async Task PublicEndpoints_RemainAnonymous()
     {
         var (client, pageVisits) = CreateClient();

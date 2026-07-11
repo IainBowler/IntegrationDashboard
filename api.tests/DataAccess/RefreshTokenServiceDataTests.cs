@@ -24,7 +24,7 @@ public class RefreshTokenServiceDataTests
         _users.UpsertExternalUserAsync(
             new ExternalUserInfo("okta", $"sub-{Guid.NewGuid():N}", "user@example.com", "Test User"));
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "only the SHA-256 hash of a refresh token is stored")]
     public async Task Issue_StoresOnlyTheTokenHash()
     {
         var user = await CreateUserAsync();
@@ -42,7 +42,7 @@ public class RefreshTokenServiceDataTests
         stored.ExpiresAtUtc.Should().BeCloseTo(DateTime.UtcNow.AddDays(30), TimeSpan.FromMinutes(5));
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "rotating a valid token revokes the old one and links it to its replacement")]
     public async Task ValidateAndRotate_ValidToken_ReturnsUserAndRotates()
     {
         var user = await CreateUserAsync();
@@ -62,7 +62,7 @@ public class RefreshTokenServiceDataTests
         oldRow.ReplacedByTokenHash.Should().Be(TokenHasher.Sha256Hex(rotated.Value.NewRefreshToken));
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "an unknown refresh token is rejected")]
     public async Task ValidateAndRotate_UnknownToken_ReturnsNull()
     {
         var result = await _sut.ValidateAndRotateAsync("never-issued-token");
@@ -70,7 +70,7 @@ public class RefreshTokenServiceDataTests
         result.Should().BeNull();
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "an expired refresh token is rejected")]
     public async Task ValidateAndRotate_ExpiredToken_ReturnsNull()
     {
         var user = await CreateUserAsync();
@@ -82,7 +82,7 @@ public class RefreshTokenServiceDataTests
         result.Should().BeNull();
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "replaying a rotated token revokes the user's whole token family")]
     public async Task ValidateAndRotate_ReplayedToken_RevokesWholeFamily()
     {
         var user = await CreateUserAsync();
@@ -98,7 +98,7 @@ public class RefreshTokenServiceDataTests
         successor.Should().BeNull();
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "a revoked token can no longer rotate")]
     public async Task Revoke_ValidToken_PreventsRotation()
     {
         var user = await CreateUserAsync();
@@ -109,7 +109,7 @@ public class RefreshTokenServiceDataTests
         (await _sut.ValidateAndRotateAsync(raw)).Should().BeNull();
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "revoking twice is harmless")]
     public async Task Revoke_IsIdempotent()
     {
         var user = await CreateUserAsync();
@@ -121,7 +121,7 @@ public class RefreshTokenServiceDataTests
         await act.Should().NotThrowAsync();
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "revoking an unknown token is harmless")]
     public async Task Revoke_UnknownToken_DoesNotThrow()
     {
         var act = async () => await _sut.RevokeAsync("never-issued-token");
@@ -129,7 +129,7 @@ public class RefreshTokenServiceDataTests
         await act.Should().NotThrowAsync();
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "issuing a token sweeps the user's expired tokens")]
     public async Task Issue_CleansUpExpiredTokensForTheUser()
     {
         var user = await CreateUserAsync();

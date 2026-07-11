@@ -23,7 +23,7 @@ public class TestProviderGatingTests : IClassFixture<WebApplicationFactory<Progr
         _factory = factory;
     }
 
-    [Fact]
+    [Fact(DisplayName = "the test provider does not exist without the feature flag")]
     public async Task TestProvider_WithoutFlag_DoesNotExist()
     {
         var client = _factory.WithAuthSettings().CreateClient(NoRedirects);
@@ -33,7 +33,7 @@ public class TestProviderGatingTests : IClassFixture<WebApplicationFactory<Progr
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    [Fact]
+    [Fact(DisplayName = "the test provider never exists in Production, even with the flag on")]
     public async Task TestProvider_WithFlagInProduction_DoesNotExist()
     {
         var client = _factory.WithAuthSettings()
@@ -49,7 +49,7 @@ public class TestProviderGatingTests : IClassFixture<WebApplicationFactory<Progr
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    [Fact]
+    [Fact(DisplayName = "with the flag on in Development, the test provider bounces straight to our callback")]
     public async Task TestProvider_WithFlagInDevelopment_RedirectsToOwnCallback()
     {
         var client = _factory.WithAuthSettings()
@@ -65,7 +65,7 @@ public class TestProviderGatingTests : IClassFixture<WebApplicationFactory<Progr
         location.Should().Contain("state=");
     }
 
-    [Fact]
+    [Fact(DisplayName = "the test provider completes the whole login flow and mints working tokens")]
     public async Task TestProvider_FullLoginFlow_MintsWorkingTokens()
     {
         // real TestAuthProvider, flow service, code store, and token service;

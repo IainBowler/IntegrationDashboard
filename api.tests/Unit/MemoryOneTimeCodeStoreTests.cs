@@ -8,7 +8,7 @@ public class MemoryOneTimeCodeStoreTests
 {
     private readonly MemoryOneTimeCodeStore _store = new(new MemoryCache(new MemoryCacheOptions()));
 
-    [Fact]
+    [Fact(DisplayName = "a code redeems exactly once")]
     public void Redeem_ReturnsPayloadOnce()
     {
         var code = _store.Issue("handoff", "42", TimeSpan.FromMinutes(1));
@@ -17,7 +17,7 @@ public class MemoryOneTimeCodeStoreTests
         _store.Redeem("handoff", code).Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "a code cannot be redeemed for a different purpose")]
     public void Redeem_WithWrongPurpose_ReturnsNull()
     {
         var code = _store.Issue("handoff", "42", TimeSpan.FromMinutes(1));
@@ -27,13 +27,13 @@ public class MemoryOneTimeCodeStoreTests
         _store.Redeem("handoff", code).Should().Be("42");
     }
 
-    [Fact]
+    [Fact(DisplayName = "an unknown code redeems to nothing")]
     public void Redeem_UnknownCode_ReturnsNull()
     {
         _store.Redeem("handoff", "no-such-code").Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "an expired code redeems to nothing")]
     public async Task Redeem_AfterExpiry_ReturnsNull()
     {
         var code = _store.Issue("handoff", "42", TimeSpan.FromMilliseconds(50));
@@ -43,7 +43,7 @@ public class MemoryOneTimeCodeStoreTests
         _store.Redeem("handoff", code).Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "issued codes are unique and URL-safe")]
     public void Issue_GeneratesUniqueUrlSafeCodes()
     {
         var first = _store.Issue("state", "a", TimeSpan.FromMinutes(1));

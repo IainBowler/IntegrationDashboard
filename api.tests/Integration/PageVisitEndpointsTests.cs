@@ -30,7 +30,7 @@ public class PageVisitEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         return (client, fake);
     }
 
-    [Fact]
+    [Fact(DisplayName = "recording a visit returns 201 Created")]
     public async Task PostPageVisit_ReturnsCreated()
     {
         var (client, service) = CreateClient();
@@ -42,7 +42,7 @@ public class PageVisitEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         await service.Received(1).RecordVisitAsync("/dashboard");
     }
 
-    [Fact]
+    [Fact(DisplayName = "recording a visit passes the page path to the service")]
     public async Task PostPageVisit_CallsServiceWithCorrectPath()
     {
         var (client, service) = CreateClient();
@@ -53,7 +53,7 @@ public class PageVisitEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         await service.Received(1).RecordVisitAsync("/about");
     }
 
-    [Fact]
+    [Fact(DisplayName = "the count endpoint returns the service's count")]
     public async Task GetPageVisitCount_ReturnsOkWithCount()
     {
         var (client, service) = CreateClient();
@@ -66,7 +66,7 @@ public class PageVisitEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         body!.Count.Should().Be(7);
     }
 
-    [Fact]
+    [Fact(DisplayName = "the count endpoint passes the page path to the service")]
     public async Task GetPageVisitCount_CallsServiceWithCorrectPath()
     {
         var (client, service) = CreateClient();
@@ -77,7 +77,7 @@ public class PageVisitEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         await service.Received(1).GetVisitCountAsync("/home");
     }
 
-    [Fact]
+    [Fact(DisplayName = "an unvisited path counts zero")]
     public async Task GetPageVisitCount_WhenZeroVisits_ReturnsZero()
     {
         var (client, service) = CreateClient();

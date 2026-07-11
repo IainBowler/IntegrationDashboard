@@ -19,7 +19,7 @@ public class OktaAuthProviderTests
             ClientSecret = "client-secret",
         }));
 
-    [Fact]
+    [Fact(DisplayName = "the authorization URL carries the full set of OIDC parameters")]
     public void BuildAuthorizationUrl_ContainsOidcParameters()
     {
         var provider = CreateProvider(new StubHttpHandler(_ => throw new InvalidOperationException()));
@@ -37,7 +37,7 @@ public class OktaAuthProviderTests
         url.Should().Contain("code_challenge_method=S256");
     }
 
-    [Fact]
+    [Fact(DisplayName = "the code exchange posts the code, PKCE verifier, and client secret to Okta's token endpoint")]
     public async Task ExchangeCode_SendsCodeAndSecretToTokenEndpoint()
     {
         var handler = HappyPathHandler();
@@ -56,7 +56,7 @@ public class OktaAuthProviderTests
         tokenBody.Should().Contain("redirect_uri=https%3A%2F%2Fapi.example%2Fcb");
     }
 
-    [Fact]
+    [Fact(DisplayName = "the userinfo call carries Okta's access token and maps the profile")]
     public async Task ExchangeCode_CallsUserInfoWithBearerToken()
     {
         var handler = HappyPathHandler();
@@ -72,7 +72,7 @@ public class OktaAuthProviderTests
         result.Should().Be(new ExternalUserInfo("okta", "sub-1", "user@example.com", "Test User"));
     }
 
-    [Fact]
+    [Fact(DisplayName = "a failed token exchange yields no user")]
     public async Task ExchangeCode_WhenTokenEndpointFails_ReturnsNull()
     {
         var handler = new StubHttpHandler(_ => Json(HttpStatusCode.BadRequest, """{"error":"invalid_grant"}"""));
@@ -83,7 +83,7 @@ public class OktaAuthProviderTests
         handler.Requests.Should().HaveCount(1);
     }
 
-    [Fact]
+    [Fact(DisplayName = "a token response without an access token yields no user")]
     public async Task ExchangeCode_WhenAccessTokenMissing_ReturnsNull()
     {
         var handler = new StubHttpHandler(_ => Json(HttpStatusCode.OK, """{"token_type":"Bearer"}"""));
@@ -93,7 +93,7 @@ public class OktaAuthProviderTests
         result.Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "a failed userinfo call yields no user")]
     public async Task ExchangeCode_WhenUserInfoFails_ReturnsNull()
     {
         var handler = new StubHttpHandler(request =>
@@ -106,7 +106,7 @@ public class OktaAuthProviderTests
         result.Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "a userinfo response without a subject yields no user")]
     public async Task ExchangeCode_WhenSubjectMissing_ReturnsNull()
     {
         var handler = new StubHttpHandler(request =>

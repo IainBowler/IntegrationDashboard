@@ -14,7 +14,7 @@ public class PageVisitServiceDataTests
         _sut = new PageVisitService(fixture.ConnectionString);
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "recorded visits round-trip through the real table")]
     public async Task RecordVisit_ThenCount_RoundTrips()
     {
         var path = $"/page-{Guid.NewGuid():N}";
@@ -26,13 +26,13 @@ public class PageVisitServiceDataTests
         (await _sut.GetVisitCountAsync(path)).Should().Be(3);
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "an unvisited path counts zero in the real table")]
     public async Task Count_UnvisitedPath_IsZero()
     {
         (await _sut.GetVisitCountAsync($"/never-{Guid.NewGuid():N}")).Should().Be(0);
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "the summary groups by path and orders by count descending")]
     public async Task Summary_GroupsByPathAndOrdersByCountDescending()
     {
         var busyPath = $"/busy-{Guid.NewGuid():N}";

@@ -33,13 +33,13 @@ public class AuthFlowServiceTests
             }));
     }
 
-    [Fact]
+    [Fact(DisplayName = "login with an unknown provider is rejected")]
     public void BeginLogin_UnknownProvider_ReturnsNull()
     {
         _sut.BeginLogin("google").Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "login issues a single-use state and builds the provider's authorization URL")]
     public void BeginLogin_BuildsAuthorizationUrlWithIssuedState()
     {
         _codeStore.Issue("state", Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns("state-code");
@@ -55,7 +55,7 @@ public class AuthFlowServiceTests
             Arg.Any<TimeSpan>());
     }
 
-    [Fact]
+    [Fact(DisplayName = "provider names are case-insensitive")]
     public void BeginLogin_IsCaseInsensitiveOnProviderName()
     {
         _codeStore.Issue("state", Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns("state-code");
@@ -65,7 +65,7 @@ public class AuthFlowServiceTests
         _sut.BeginLogin("OKTA").Should().NotBeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "callbacks for unknown providers are rejected")]
     public async Task HandleCallback_UnknownProvider_ReturnsNull()
     {
         var result = await _sut.HandleCallbackAsync("google", "code", "state");
@@ -73,7 +73,7 @@ public class AuthFlowServiceTests
         result.Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "a callback with an invalid state never reaches the provider")]
     public async Task HandleCallback_InvalidState_ReturnsNullWithoutCallingProvider()
     {
         _codeStore.Redeem("state", "bad-state").Returns((string?)null);
@@ -85,7 +85,7 @@ public class AuthFlowServiceTests
             .ExchangeCodeAsync(default!, default!, default!, default);
     }
 
-    [Fact]
+    [Fact(DisplayName = "a state issued for one provider cannot complete another provider's callback")]
     public async Task HandleCallback_StateForDifferentProvider_ReturnsNull()
     {
         _codeStore.Redeem("state", "state-code").Returns("google|verifier");
@@ -95,7 +95,7 @@ public class AuthFlowServiceTests
         result.Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "a failed code exchange produces no handoff code")]
     public async Task HandleCallback_ExchangeFails_ReturnsNull()
     {
         _codeStore.Redeem("state", "state-code").Returns("okta|verifier");
@@ -107,7 +107,7 @@ public class AuthFlowServiceTests
         result.Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "a successful callback upserts the user and issues a short-lived handoff code")]
     public async Task HandleCallback_Success_UpsertsUserAndIssuesHandoffCode()
     {
         var externalUser = new ExternalUserInfo("okta", "sub-1", "user@example.com", "Test User");
@@ -124,7 +124,7 @@ public class AuthFlowServiceTests
             "handoff", "42", Arg.Is<TimeSpan>(ttl => ttl <= TimeSpan.FromMinutes(1)));
     }
 
-    [Fact]
+    [Fact(DisplayName = "an invalid handoff code yields no tokens")]
     public async Task ExchangeHandoffCode_InvalidCode_ReturnsNull()
     {
         _codeStore.Redeem("handoff", "bad").Returns((string?)null);
@@ -134,7 +134,7 @@ public class AuthFlowServiceTests
         result.Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "a handoff code for a user that no longer exists yields no tokens")]
     public async Task ExchangeHandoffCode_UnknownUser_ReturnsNull()
     {
         _codeStore.Redeem("handoff", "code").Returns("42");
@@ -145,7 +145,7 @@ public class AuthFlowServiceTests
         result.Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "a valid handoff code mints an access token and a refresh token")]
     public async Task ExchangeHandoffCode_Success_MintsAccessAndRefreshTokens()
     {
         _codeStore.Redeem("handoff", "code").Returns("42");
@@ -165,7 +165,7 @@ public class AuthFlowServiceTests
         result.User.DisplayName.Should().Be("Test User");
     }
 
-    [Fact]
+    [Fact(DisplayName = "refreshing with an invalid token is rejected")]
     public async Task Refresh_InvalidToken_ReturnsNull()
     {
         _refreshTokenService.ValidateAndRotateAsync("bad")
@@ -176,7 +176,7 @@ public class AuthFlowServiceTests
         result.Should().BeNull();
     }
 
-    [Fact]
+    [Fact(DisplayName = "refreshing returns a new access token and a rotated refresh token")]
     public async Task Refresh_ValidToken_ReturnsRotatedPair()
     {
         _refreshTokenService.ValidateAndRotateAsync("old-raw").Returns((User, "new-raw"));
@@ -189,7 +189,7 @@ public class AuthFlowServiceTests
         result.AccessToken.Should().Be("access-jwt");
     }
 
-    [Fact]
+    [Fact(DisplayName = "logout revokes the refresh token")]
     public async Task Logout_RevokesRefreshToken()
     {
         await _sut.LogoutAsync("refresh-raw");

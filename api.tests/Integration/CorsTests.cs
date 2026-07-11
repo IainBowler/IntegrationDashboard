@@ -12,7 +12,7 @@ public class CorsTests : IClassFixture<WebApplicationFactory<Program>>
         _factory = factory;
     }
 
-    [Fact]
+    [Fact(DisplayName = "requests from an allowed origin get the CORS header")]
     public async Task Request_FromAllowedOrigin_ReturnsCorsHeader()
     {
         var client = _factory.WithWebHostBuilder(b =>
@@ -28,7 +28,7 @@ public class CorsTests : IClassFixture<WebApplicationFactory<Program>>
             .Should().Contain("https://example.com");
     }
 
-    [Fact]
+    [Fact(DisplayName = "requests from an unknown origin get no CORS header")]
     public async Task Request_FromUnknownOrigin_DoesNotReturnCorsHeader()
     {
         var client = _factory.WithWebHostBuilder(b =>

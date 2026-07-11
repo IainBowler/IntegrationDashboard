@@ -13,7 +13,7 @@ public class HealthEndpointsTests : IClassFixture<WebApplicationFactory<Program>
         _factory = factory;
     }
 
-    [Fact]
+    [Fact(DisplayName = "GET /health is public")]
     public async Task Health_IsPubliclyReachable()
     {
         var response = await _factory.CreateClient().GetAsync("/health");
@@ -21,7 +21,7 @@ public class HealthEndpointsTests : IClassFixture<WebApplicationFactory<Program>
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    [Fact]
+    [Fact(DisplayName = "GET / returns 200 for App Service Always On pings")]
     public async Task Root_ReturnsOkForAlwaysOnPings()
     {
         var response = await _factory.CreateClient().GetAsync("/");

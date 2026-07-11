@@ -22,7 +22,7 @@ public class UserServiceDataTests
         string? email = "user@example.com", string? name = "Test User") =>
         new("okta", $"sub-{Guid.NewGuid():N}", email, name);
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "first login inserts the user and returns the record")]
     public async Task Upsert_NewUser_InsertsAndReturnsRecord()
     {
         var info = NewExternalUser();
@@ -36,7 +36,7 @@ public class UserServiceDataTests
         user.DisplayName.Should().Be("Test User");
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "a second login updates the profile without duplicating the row")]
     public async Task Upsert_SecondLogin_UpdatesProfileWithoutDuplicating()
     {
         var info = NewExternalUser(email: "old@example.com", name: "Old Name");
@@ -56,7 +56,7 @@ public class UserServiceDataTests
         count.Should().Be(1);
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "a second login advances the last-login timestamp")]
     public async Task Upsert_SecondLogin_AdvancesLastLoginTimestamp()
     {
         var info = NewExternalUser();
@@ -72,7 +72,7 @@ public class UserServiceDataTests
         row.LastLoginAtUtc.Should().BeAfter(row.CreatedAtUtc);
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "the same subject under different providers creates separate users")]
     public async Task Upsert_SameSubjectDifferentProvider_CreatesSeparateUsers()
     {
         var subject = $"sub-{Guid.NewGuid():N}";
@@ -85,7 +85,7 @@ public class UserServiceDataTests
         googleUser.UserId.Should().NotBe(oktaUser.UserId);
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "a user round-trips by id")]
     public async Task GetById_RoundTripsUpsertedUser()
     {
         var created = await _sut.UpsertExternalUserAsync(NewExternalUser());
@@ -95,7 +95,7 @@ public class UserServiceDataTests
         fetched.Should().Be(created);
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "an unknown user id returns null")]
     public async Task GetById_UnknownUser_ReturnsNull()
     {
         var fetched = await _sut.GetByIdAsync(long.MaxValue);
@@ -103,7 +103,7 @@ public class UserServiceDataTests
         fetched.Should().BeNull();
     }
 
-    [DatabaseFact]
+    [DatabaseFact(DisplayName = "null email and display name persist as null")]
     public async Task Upsert_NullEmailAndName_ArePersistedAsNull()
     {
         var user = await _sut.UpsertExternalUserAsync(NewExternalUser(email: null, name: null));

@@ -25,7 +25,7 @@ public class JwtTokenServiceTests
     private static JwtTokenService CreateService(JwtOptions? options = null) =>
         new(Microsoft.Extensions.Options.Options.Create(options ?? Options));
 
-    [Fact]
+    [Fact(DisplayName = "the returned expiry matches the configured lifetime in seconds")]
     public void CreateAccessToken_ReturnsLifetimeInSeconds()
     {
         var (_, expiresInSeconds) = CreateService().CreateAccessToken(User);
@@ -33,7 +33,7 @@ public class JwtTokenServiceTests
         expiresInSeconds.Should().Be(15 * 60);
     }
 
-    [Fact]
+    [Fact(DisplayName = "minted tokens carry the user's sub, provider, email, and name claims")]
     public void CreateAccessToken_IncludesUserClaims()
     {
         var (accessToken, _) = CreateService().CreateAccessToken(User);
@@ -47,7 +47,7 @@ public class JwtTokenServiceTests
         token.Audiences.Should().ContainSingle().Which.Should().Be("TestAudience");
     }
 
-    [Fact]
+    [Fact(DisplayName = "email and name claims are omitted when the user has none")]
     public void CreateAccessToken_OmitsMissingOptionalClaims()
     {
         var (accessToken, _) = CreateService().CreateAccessToken(
@@ -58,7 +58,7 @@ public class JwtTokenServiceTests
         token.TryGetClaim("name", out _).Should().BeFalse();
     }
 
-    [Fact]
+    [Fact(DisplayName = "minted tokens validate against the same signing key")]
     public async Task CreateAccessToken_ValidatesWithSameKey()
     {
         var (accessToken, _) = CreateService().CreateAccessToken(User);
@@ -69,7 +69,7 @@ public class JwtTokenServiceTests
         result.IsValid.Should().BeTrue();
     }
 
-    [Fact]
+    [Fact(DisplayName = "minted tokens fail validation against a different signing key")]
     public async Task CreateAccessToken_FailsValidationWithWrongKey()
     {
         var (accessToken, _) = CreateService().CreateAccessToken(User);

@@ -3,6 +3,7 @@ CREATE TABLE [dbo].[IntegrationCall]
     [IntegrationCallId] BIGINT         IDENTITY(1,1)  NOT NULL,
     [Direction]         NVARCHAR(10)                  NOT NULL,
     [IntegrationName]   NVARCHAR(50)                  NOT NULL,
+    [IntegrationEndpointId] BIGINT                    NULL,
     [CorrelationId]     NVARCHAR(64)                  NULL,
     [UserId]            BIGINT                        NULL,
     [Method]            NVARCHAR(10)                  NOT NULL,
@@ -16,6 +17,7 @@ CREATE TABLE [dbo].[IntegrationCall]
 
     CONSTRAINT [PK_IntegrationCall] PRIMARY KEY CLUSTERED ([IntegrationCallId] ASC),
     CONSTRAINT [FK_IntegrationCall_User] FOREIGN KEY ([UserId]) REFERENCES [dbo].[User] ([UserId]),
+    CONSTRAINT [FK_IntegrationCall_IntegrationEndpoint] FOREIGN KEY ([IntegrationEndpointId]) REFERENCES [dbo].[IntegrationEndpoint] ([IntegrationEndpointId]),
     CONSTRAINT [CK_IntegrationCall_Direction] CHECK ([Direction] IN (N'Inbound', N'Outbound'))
 );
 GO
@@ -26,3 +28,7 @@ GO
 
 CREATE NONCLUSTERED INDEX [IX_IntegrationCall_CalledAtUtc]
     ON [dbo].[IntegrationCall] ([CalledAtUtc]);
+GO
+
+CREATE NONCLUSTERED INDEX [IX_IntegrationCall_IntegrationEndpointId]
+    ON [dbo].[IntegrationCall] ([IntegrationEndpointId]);

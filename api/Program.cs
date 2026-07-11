@@ -3,6 +3,8 @@ using Api.Endpoints;
 using Api.Options;
 using Api.Services;
 using Api.Services.Auth;
+using Api.Services.Integrations;
+using Api.Services.Integrations.Salesforce;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -37,6 +39,13 @@ builder.Services.AddTransient<IRefreshTokenService>(sp =>
         builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty,
         sp.GetRequiredService<IOptions<AuthOptions>>().Value.RefreshTokenDays));
 builder.Services.AddTransient<IAuthFlowService, AuthFlowService>();
+
+builder.Services.Configure<SalesforceOptions>(builder.Configuration.GetSection("Salesforce"));
+builder.Services.AddHttpClient<ISalesforceTokenProvider, SalesforceTokenProvider>(
+    client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient<SalesforceConnector>(
+    client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddTransient<IIntegrationConnector>(sp => sp.GetRequiredService<SalesforceConnector>());
 
 var signingKey = builder.Configuration["Jwt:SigningKey"] ?? "";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -79,6 +88,7 @@ app.UseAuthorization();
 app.MapHealthEndpoints();
 app.MapPageVisitEndpoints();
 app.MapAuthEndpoints();
+app.MapSalesforceEndpoints();
 
 app.Run();
 

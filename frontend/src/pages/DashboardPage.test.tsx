@@ -33,11 +33,12 @@ describe('DashboardPage', () => {
     expect(screen.getByText('5')).toBeInTheDocument()
   })
 
-  it('lists the integrations with a details button that opens the integration page', async () => {
+  it('lists the integrations from the API with a details button that opens the integration page', async () => {
     renderDashboard()
 
     const integrationsSection = await screen.findByRole('region', { name: 'Integrations' })
-    expect(integrationsSection).toHaveTextContent('Salesforce')
+    expect(integrationsSection).toHaveTextContent('Loading integrations…')
+    expect(await screen.findByText('Salesforce')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Details' }))
 

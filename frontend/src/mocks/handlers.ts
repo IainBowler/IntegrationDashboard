@@ -56,6 +56,65 @@ export const handlers = [
     return HttpResponse.json(mockUser)
   }),
 
+  http.get(`${API_BASE}/api/integrations`, ({ request }) => {
+    if (!hasBearerToken(request)) {
+      return new HttpResponse(null, { status: 401 })
+    }
+    return HttpResponse.json([{ name: 'salesforce', displayName: 'Salesforce' }])
+  }),
+
+  http.get(`${API_BASE}/api/integrations/salesforce/statistics`, ({ request }) => {
+    if (!hasBearerToken(request)) {
+      return new HttpResponse(null, { status: 401 })
+    }
+    return HttpResponse.json({
+      name: 'salesforce',
+      displayName: 'Salesforce',
+      endpoints: [
+        {
+          endpointName: 'auth',
+          direction: 'Inbound',
+          totalCalls: 5,
+          successCount: 4,
+          avgDurationMs: 12.5,
+          maxDurationMs: 30,
+          lastCalledAtUtc: '2026-07-12T09:00:00Z',
+          lastStatusCode: 200,
+        },
+        {
+          endpointName: 'accounts',
+          direction: 'Inbound',
+          totalCalls: 3,
+          successCount: 3,
+          avgDurationMs: 250,
+          maxDurationMs: 400,
+          lastCalledAtUtc: '2026-07-12T09:05:00Z',
+          lastStatusCode: 200,
+        },
+        {
+          endpointName: 'token',
+          direction: 'Outbound',
+          totalCalls: 0,
+          successCount: 0,
+          avgDurationMs: null,
+          maxDurationMs: null,
+          lastCalledAtUtc: null,
+          lastStatusCode: null,
+        },
+        {
+          endpointName: 'query',
+          direction: 'Outbound',
+          totalCalls: 3,
+          successCount: 2,
+          avgDurationMs: 180.4,
+          maxDurationMs: 320,
+          lastCalledAtUtc: '2026-07-12T09:05:01Z',
+          lastStatusCode: 502,
+        },
+      ],
+    })
+  }),
+
   http.get(`${API_BASE}/api/integrations/salesforce/auth`, ({ request }) => {
     if (!hasBearerToken(request)) {
       return new HttpResponse(null, { status: 401 })

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { getMe, getPageVisitSummary } from '../api/dashboard'
 import type { PageVisitSummaryItem } from '../api/dashboard'
-import { integrations } from '../api/integrations'
+import { getIntegrations } from '../api/integrations'
+import type { Integration } from '../api/integrations'
 import type { AuthUser } from '../api/authClient'
 import { useAuth } from '../auth/useAuth'
 import '../App.css'
@@ -12,10 +13,12 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const [profile, setProfile] = useState<AuthUser | null>(null)
   const [summary, setSummary] = useState<PageVisitSummaryItem[] | null>(null)
+  const [integrations, setIntegrations] = useState<Integration[] | null>(null)
 
   useEffect(() => {
     getMe().then(setProfile).catch(console.error)
     getPageVisitSummary().then(setSummary).catch(console.error)
+    getIntegrations().then(setIntegrations).catch(console.error)
   }, [])
 
   function handleLogout() {
@@ -50,20 +53,24 @@ export function DashboardPage() {
 
       <section aria-label="Integrations">
         <h2>Integrations</h2>
-        <ul>
-          {integrations.map((integration) => (
-            <li key={integration.name}>
-              {integration.label}{' '}
-              <button
-                type="button"
-                className="counter"
-                onClick={() => navigate(`/integrations/${integration.name}`)}
-              >
-                Details
-              </button>
-            </li>
-          ))}
-        </ul>
+        {integrations ? (
+          <ul>
+            {integrations.map((integration) => (
+              <li key={integration.name}>
+                {integration.displayName}{' '}
+                <button
+                  type="button"
+                  className="counter"
+                  onClick={() => navigate(`/integrations/${integration.name}`)}
+                >
+                  Details
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>Loading integrations…</p>
+        )}
       </section>
 
       <section aria-label="Page views">

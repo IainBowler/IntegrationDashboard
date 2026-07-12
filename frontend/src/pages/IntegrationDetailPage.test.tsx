@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { http, HttpResponse } from 'msw'
@@ -59,6 +59,70 @@ describe('IntegrationDetailPage', () => {
     await userEvent.click(button)
 
     expect(await screen.findByText('HTTP 502')).toBeInTheDocument()
+  })
+
+  it('shows lifetime statistics per endpoint, with dashes for endpoints never called', async () => {
+    renderAt('/integrations/salesforce')
+
+    const statistics = await screen.findByRole('region', { name: 'Statistics' })
+    const rows = await within(statistics).findAllByRole('row')
+    // header + the four endpoints from the mock
+    expect(rows).toHaveLength(5)
+
+    const authRow = within(statistics).getByRole('row', { name: /^auth / })
+    expect(authRow).toHaveTextContent('Inbound')
+    expect(authRow).toHaveTextContent('5')
+    expect(authRow).toHaveTextContent('80%')
+    expect(authRow).toHaveTextContent('13') // 12.5 rounded
+    expect(authRow).toHaveTextContent('HTTP 200')
+
+    const tokenRow = within(statistics).getByRole('row', { name: /^token / })
+    expect(tokenRow).toHaveTextContent('Outbound')
+    expect(tokenRow).toHaveTextContent('—')
+  })
+
+  it('refreshes the statistics after an endpoint check completes', async () => {
+    renderAt('/integrations/salesforce')
+    const statistics = await screen.findByRole('region', { name: 'Statistics' })
+    await within(statistics).findAllByRole('row')
+
+    server.use(
+      http.get('http://localhost:3000/api/integrations/salesforce/statistics', () =>
+        HttpResponse.json({
+          name: 'salesforce',
+          displayName: 'Salesforce',
+          endpoints: [
+            {
+              endpointName: 'auth',
+              direction: 'Inbound',
+              totalCalls: 99,
+              successCount: 99,
+              avgDurationMs: 10,
+              maxDurationMs: 20,
+              lastCalledAtUtc: '2026-07-12T10:00:00Z',
+              lastStatusCode: 200,
+            },
+          ],
+        }),
+      ),
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Call auth endpoint' }))
+
+    expect(await within(statistics).findByText('99')).toBeInTheDocument()
+  })
+
+  it('still renders the endpoint check buttons when statistics fail to load', async () => {
+    server.use(
+      http.get('http://localhost:3000/api/integrations/salesforce/statistics', () =>
+        HttpResponse.json({ title: 'boom' }, { status: 500 }),
+      ),
+    )
+    renderAt('/integrations/salesforce')
+
+    expect(
+      await screen.findByRole('button', { name: 'Call auth endpoint' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Loading statistics…')).toBeInTheDocument()
   })
 
   it('links back to the dashboard', async () => {

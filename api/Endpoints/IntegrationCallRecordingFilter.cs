@@ -28,6 +28,13 @@ public sealed class IntegrationCallRecordingFilter(string integrationName) : IEn
         var endpointName = http.Request.Path.Value?.TrimEnd('/') is { Length: > 0 } path
             ? path[(path.LastIndexOf('/') + 1)..]
             : null;
+        // Like the response body below, the request body is a re-serialisation
+        // of the bound Contract argument rather than a wire capture — the body
+        // stream is already consumed by binding when this filter runs.
+        var requestBody = context.Arguments
+            .FirstOrDefault(a => a?.GetType().Namespace == "Api.Contracts") is { } dto
+            ? JsonSerializer.Serialize(dto, dto.GetType(), JsonSerializerOptions.Web)
+            : null;
         var stopwatch = Stopwatch.StartNew();
 
         object? result;
@@ -48,7 +55,7 @@ public sealed class IntegrationCallRecordingFilter(string integrationName) : IEn
                 url,
                 StatusCode: null,
                 (int)stopwatch.ElapsedMilliseconds,
-                RequestBody: null,
+                requestBody,
                 ResponseBody: null,
                 Error: $"{ex.GetType().Name}: {ex.Message}"));
             throw;
@@ -72,7 +79,7 @@ public sealed class IntegrationCallRecordingFilter(string integrationName) : IEn
             url,
             statusCode,
             (int)stopwatch.ElapsedMilliseconds,
-            RequestBody: null, // both endpoints are GET today; capture here when POST endpoints arrive
+            requestBody,
             responseBody,
             Error: null));
         return result;

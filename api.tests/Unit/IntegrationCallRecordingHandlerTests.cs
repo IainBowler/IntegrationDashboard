@@ -25,14 +25,22 @@ public class IntegrationCallRecordingHandlerTests
         return (new HttpClient(handler), saved, service);
     }
 
-    private static HttpRequestMessage TokenExchangeRequest() => new(HttpMethod.Post, TokenUrl)
+    private static HttpRequestMessage TokenExchangeRequest(string? endpointName = "token")
     {
-        Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        var request = new HttpRequestMessage(HttpMethod.Post, TokenUrl)
         {
-            ["grant_type"] = "urn:ietf:params:oauth:grant-type:jwt-bearer",
-            ["assertion"] = "eyJhbGci.eyJpc3M.c2ln",
-        }),
-    };
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                ["assertion"] = "eyJhbGci.eyJpc3M.c2ln",
+            }),
+        };
+        if (endpointName is not null)
+        {
+            request.Options.Set(IntegrationCallOptions.EndpointName, endpointName);
+        }
+        return request;
+    }
 
     [Fact(DisplayName = "a successful call is recorded with redacted bodies, status, and duration")]
     public async Task Send_Success_RecordsRedactedOutboundRow()
@@ -45,6 +53,7 @@ public class IntegrationCallRecordingHandlerTests
         var record = saved.Should().ContainSingle().Which;
         record.Direction.Should().Be(IntegrationCallDirection.Outbound);
         record.IntegrationName.Should().Be("salesforce");
+        record.EndpointName.Should().Be("token");
         record.Method.Should().Be("POST");
         record.Url.Should().Be(TokenUrl);
         record.StatusCode.Should().Be(200);
@@ -97,6 +106,17 @@ public class IntegrationCallRecordingHandlerTests
         var response = await client.SendAsync(TokenExchangeRequest());
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact(DisplayName = "an untagged request is recorded with no endpoint name")]
+    public async Task Send_UntaggedRequest_RecordsNullEndpointName()
+    {
+        var (client, saved, _) = CreateClient(
+            new StubHttpHandler(_ => StubHttpHandler.Json(HttpStatusCode.OK, TokenResponseJson)));
+
+        await client.SendAsync(TokenExchangeRequest(endpointName: null));
+
+        saved.Single().EndpointName.Should().BeNull();
     }
 
     [Fact(DisplayName = "the ambient activity's trace id becomes the correlation id")]

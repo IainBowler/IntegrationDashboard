@@ -104,6 +104,7 @@ public class IntegrationCallRecordingTests : IClassFixture<WebApplicationFactory
         var record = saved.Should().ContainSingle().Which;
         record.Direction.Should().Be(IntegrationCallDirection.Inbound);
         record.IntegrationName.Should().Be("salesforce");
+        record.EndpointName.Should().Be("auth");
         record.Method.Should().Be("GET");
         record.Url.Should().Be(AuthUrl);
         record.StatusCode.Should().Be(200);
@@ -123,6 +124,7 @@ public class IntegrationCallRecordingTests : IClassFixture<WebApplicationFactory
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var record = saved.Should().ContainSingle().Which;
+        record.EndpointName.Should().Be("accounts");
         record.StatusCode.Should().Be(200);
         record.ResponseBody.Should().Contain("Acme").And.NotContain("attributes");
     }

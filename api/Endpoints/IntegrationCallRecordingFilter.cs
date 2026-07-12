@@ -24,6 +24,10 @@ public sealed class IntegrationCallRecordingFilter(string integrationName) : IEn
         var userId = long.TryParse(http.User.FindFirstValue("sub"), out var id) ? id : (long?)null;
         var method = http.Request.Method;
         var url = http.Request.Path + http.Request.QueryString;
+        // last path segment matches the seeded dbo.IntegrationEndpoint names
+        var endpointName = http.Request.Path.Value?.TrimEnd('/') is { Length: > 0 } path
+            ? path[(path.LastIndexOf('/') + 1)..]
+            : null;
         var stopwatch = Stopwatch.StartNew();
 
         object? result;
@@ -37,6 +41,7 @@ public sealed class IntegrationCallRecordingFilter(string integrationName) : IEn
             await recorder.RecordAsync(new IntegrationCallRecord(
                 IntegrationCallDirection.Inbound,
                 integrationName,
+                endpointName,
                 correlationId,
                 userId,
                 method,
@@ -60,6 +65,7 @@ public sealed class IntegrationCallRecordingFilter(string integrationName) : IEn
         await recorder.RecordAsync(new IntegrationCallRecord(
             IntegrationCallDirection.Inbound,
             integrationName,
+            endpointName,
             correlationId,
             userId,
             method,

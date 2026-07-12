@@ -24,6 +24,7 @@ public class IntegrationCallServiceDataTests
     private sealed record IntegrationCallRow(
         string Direction,
         string IntegrationName,
+        long? IntegrationEndpointId,
         string? CorrelationId,
         long? UserId,
         string Method,
@@ -40,7 +41,7 @@ public class IntegrationCallServiceDataTests
         var conn = new SqlConnection(_fixture.ConnectionString);
         return conn.QuerySingleAsync<IntegrationCallRow>(
             """
-            SELECT Direction, IntegrationName, CorrelationId, UserId, Method, Url,
+            SELECT Direction, IntegrationName, IntegrationEndpointId, CorrelationId, UserId, Method, Url,
                    StatusCode, DurationMs, RequestBody, ResponseBody, Error, CalledAtUtc
             FROM dbo.IntegrationCall WHERE Url = @url
             """,
@@ -53,7 +54,7 @@ public class IntegrationCallServiceDataTests
         var url = $"https://myorg.my.salesforce.com/services/data/v66.0/query?marker={Guid.NewGuid():N}";
 
         await _sut.SaveAsync(new IntegrationCallRecord(
-            IntegrationCallDirection.Outbound, "salesforce", "trace-abc", null,
+            IntegrationCallDirection.Outbound, "salesforce", "query", "trace-abc", null,
             "GET", url, 200, 123,
             RequestBody: null,
             ResponseBody: """{"records":[]}""",
@@ -62,6 +63,7 @@ public class IntegrationCallServiceDataTests
         var row = await ReadBackAsync(url);
         row.Direction.Should().Be("Outbound");
         row.IntegrationName.Should().Be("salesforce");
+        row.IntegrationEndpointId.Should().Be(await SeededEndpointIdAsync("query"));
         row.CorrelationId.Should().Be("trace-abc");
         row.UserId.Should().BeNull();
         row.Method.Should().Be("GET");
@@ -81,12 +83,39 @@ public class IntegrationCallServiceDataTests
         var url = $"/api/integrations/salesforce/auth?marker={Guid.NewGuid():N}";
 
         await _sut.SaveAsync(new IntegrationCallRecord(
-            IntegrationCallDirection.Inbound, "salesforce", null, user.UserId,
+            IntegrationCallDirection.Inbound, "salesforce", "auth", null, user.UserId,
             "GET", url, 200, 5, null, null, null));
 
         var row = await ReadBackAsync(url);
         row.Direction.Should().Be("Inbound");
         row.UserId.Should().Be(user.UserId);
+        row.IntegrationEndpointId.Should().Be(await SeededEndpointIdAsync("auth"));
+    }
+
+    [DatabaseFact(DisplayName = "an unknown endpoint name saves the row with a null endpoint link")]
+    public async Task Save_UnknownEndpointName_SavesUnlinked()
+    {
+        var url = $"/api/integrations/salesforce/future-endpoint?marker={Guid.NewGuid():N}";
+
+        await _sut.SaveAsync(new IntegrationCallRecord(
+            IntegrationCallDirection.Inbound, "salesforce", "future-endpoint", null, null,
+            "GET", url, 200, 5, null, null, null));
+
+        var row = await ReadBackAsync(url);
+        row.IntegrationEndpointId.Should().BeNull();
+    }
+
+    private async Task<long> SeededEndpointIdAsync(string endpointName)
+    {
+        await using var conn = new SqlConnection(_fixture.ConnectionString);
+        return await conn.ExecuteScalarAsync<long>(
+            """
+            SELECT e.IntegrationEndpointId
+            FROM dbo.IntegrationEndpoint e
+            JOIN dbo.Integration i ON i.IntegrationId = e.IntegrationId
+            WHERE i.Name = N'salesforce' AND e.Name = @endpointName
+            """,
+            new { endpointName });
     }
 
     [DatabaseFact(DisplayName = "a transport failure stores a null status code with the error")]
@@ -95,7 +124,7 @@ public class IntegrationCallServiceDataTests
         var url = $"https://login.salesforce.com/services/oauth2/token?marker={Guid.NewGuid():N}";
 
         await _sut.SaveAsync(new IntegrationCallRecord(
-            IntegrationCallDirection.Outbound, "salesforce", null, null,
+            IntegrationCallDirection.Outbound, "salesforce", "token", null, null,
             "POST", url, null, 30000,
             RequestBody: "grant_type=jwt-bearer&assertion=[REDACTED]",
             ResponseBody: null,

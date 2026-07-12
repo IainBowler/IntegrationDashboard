@@ -56,6 +56,9 @@ builder.Services.AddHttpClient<SalesforceConnector>(
     .AddHttpMessageHandler(sp => new IntegrationCallRecordingHandler(
         sp.GetRequiredService<IIntegrationCallRecorder>(), "salesforce"));
 builder.Services.AddTransient<IIntegrationConnector>(sp => sp.GetRequiredService<SalesforceConnector>());
+builder.Services.AddTransient<IIntegrationDirectoryService>(_ =>
+    new IntegrationDirectoryService(
+        builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty));
 
 var signingKey = builder.Configuration["Jwt:SigningKey"] ?? "";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -98,6 +101,7 @@ app.UseAuthorization();
 app.MapHealthEndpoints();
 app.MapPageVisitEndpoints();
 app.MapAuthEndpoints();
+app.MapIntegrationsEndpoints();
 app.MapSalesforceEndpoints();
 
 app.Run();

@@ -8,7 +8,7 @@ namespace Api.Tests.Unit;
 public class IntegrationCallRecorderTests
 {
     private static IntegrationCallRecord SampleCall(string? requestBody = null, string? responseBody = null) =>
-        new(IntegrationCallDirection.Outbound, "salesforce", "trace-1", null,
+        new(IntegrationCallDirection.Outbound, "salesforce", "token", "trace-1", null,
             "POST", "https://login.salesforce.com/services/oauth2/token",
             200, 42, requestBody, responseBody, null);
 

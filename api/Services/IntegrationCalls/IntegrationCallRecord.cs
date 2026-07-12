@@ -15,6 +15,7 @@ public enum IntegrationCallDirection
 public sealed record IntegrationCallRecord(
     IntegrationCallDirection Direction,
     string IntegrationName,
+    string? EndpointName,
     string? CorrelationId,
     long? UserId,
     string Method,

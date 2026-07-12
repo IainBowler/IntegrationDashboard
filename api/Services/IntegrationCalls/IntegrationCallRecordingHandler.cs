@@ -22,6 +22,9 @@ public sealed class IntegrationCallRecordingHandler(
             requestBody = await request.Content.ReadAsStringAsync(cancellationToken);
         }
 
+        var endpointName = request.Options.TryGetValue(IntegrationCallOptions.EndpointName, out var name)
+            ? name
+            : null;
         var correlationId = Activity.Current?.TraceId.ToString();
         var url = request.RequestUri?.ToString() ?? "";
         var stopwatch = Stopwatch.StartNew();
@@ -37,6 +40,7 @@ public sealed class IntegrationCallRecordingHandler(
             await recorder.RecordAsync(new IntegrationCallRecord(
                 IntegrationCallDirection.Outbound,
                 integrationName,
+                endpointName,
                 correlationId,
                 UserId: null,
                 request.Method.Method,
@@ -56,6 +60,7 @@ public sealed class IntegrationCallRecordingHandler(
         await recorder.RecordAsync(new IntegrationCallRecord(
             IntegrationCallDirection.Outbound,
             integrationName,
+            endpointName,
             correlationId,
             UserId: null,
             request.Method.Method,

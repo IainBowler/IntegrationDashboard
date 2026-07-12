@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
 using Api.Options;
+using Api.Services.IntegrationCalls;
 using Api.Services.Integrations.Salesforce;
 using Api.Tests.Support;
 using FluentAssertions;
@@ -61,6 +62,19 @@ public class SalesforceTokenProviderTests
         request.Method.Should().Be(HttpMethod.Post);
         request.RequestUri!.ToString().Should().Be($"{LoginUrl}/services/oauth2/token");
         FormValue(body!, "grant_type").Should().Be("urn:ietf:params:oauth:grant-type:jwt-bearer");
+    }
+
+    [Fact(DisplayName = "the exchange request is tagged as the 'token' endpoint for call auditing")]
+    public async Task GetSession_TagsRequestWithTokenEndpointName()
+    {
+        var handler = HappyPathHandler();
+
+        await CreateProvider(handler).GetSessionAsync();
+
+        var request = handler.Requests.Single().Request;
+        request.Options.TryGetValue(IntegrationCallOptions.EndpointName, out var endpointName)
+            .Should().BeTrue();
+        endpointName.Should().Be("token");
     }
 
     [Fact(DisplayName = "the assertion is an RS256 JWT with iss=ClientId, sub=Username, aud=LoginUrl, signed by the configured key")]

@@ -1,6 +1,7 @@
 using System.Net;
 using Api.Contracts;
 using Api.Options;
+using Api.Services.IntegrationCalls;
 using Api.Services.Integrations.Salesforce;
 using Api.Tests.Support;
 using FluentAssertions;
@@ -72,6 +73,9 @@ public class SalesforceConnectorTests
             "SELECT Id, Name, Industry, Type, Website, LastModifiedDate FROM Account");
         request.Headers.Authorization!.Scheme.Should().Be("Bearer");
         request.Headers.Authorization.Parameter.Should().Be(AccessToken);
+        request.Options.TryGetValue(IntegrationCallOptions.EndpointName, out var endpointName)
+            .Should().BeTrue();
+        endpointName.Should().Be("query");
     }
 
     [Fact(DisplayName = "records map to clean DTOs — including nulls and Salesforce's +0000 datetime offset")]

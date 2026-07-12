@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Api.Options;
+using Api.Services.IntegrationCalls;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -51,17 +52,21 @@ public class SalesforceTokenProvider(
                 "Salesforce integration is not configured (Salesforce:ClientId, Salesforce:Username and Salesforce:PrivateKey are required).");
         }
 
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"{opts.LoginUrl}/services/oauth2/token")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                ["assertion"] = CreateAssertion(opts),
+            }),
+        };
+        request.Options.Set(IntegrationCallOptions.EndpointName, "token");
+
         HttpResponseMessage response;
         try
         {
-            response = await httpClient.PostAsync(
-                $"{opts.LoginUrl}/services/oauth2/token",
-                new FormUrlEncodedContent(new Dictionary<string, string>
-                {
-                    ["grant_type"] = "urn:ietf:params:oauth:grant-type:jwt-bearer",
-                    ["assertion"] = CreateAssertion(opts),
-                }),
-                ct);
+            response = await httpClient.SendAsync(request, ct);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {

@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Api.Contracts;
 using Api.Options;
+using Api.Services.IntegrationCalls;
 using Microsoft.Extensions.Options;
 
 namespace Api.Services.Integrations.Salesforce;
@@ -59,6 +60,7 @@ public class SalesforceConnector(
             + $"?q={Uri.EscapeDataString(AccountsQuery)}";
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new("Bearer", session.AccessToken);
+        request.Options.Set(IntegrationCallOptions.EndpointName, "query");
         try
         {
             return await httpClient.SendAsync(request, ct);

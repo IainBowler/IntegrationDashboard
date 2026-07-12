@@ -306,8 +306,10 @@ independently and do NOT enforce this ordering — a single PR touching all thre
 tiers may fire three workflows in parallel with no guaranteed sequence. For a
 coordinated feature, either (a) split it into sequential PRs/merges in
 DB → API → FE order, or (b) use a single orchestrated workflow with job
-dependencies (`needs:`) to enforce the sequence. Note which approach a release
-uses.
+dependencies (`needs:`) to enforce the sequence. Approach (a) is the standard
+here — the stacked per-tier PRs described in Branching & pull requests merge
+in exactly this order, so the ordering falls out of the normal process. Note
+if a release deviates from it.
 
 ## Testing (priority)
 
@@ -378,9 +380,39 @@ API (run from `api/`):
 Database (run from `database/`):
 - `dotnet build` — builds the DACPAC
 
+## Branching & pull requests
+
+All changes go through branches and pull requests — **never commit directly to
+`main`**, however small the change (docs tweaks included). `main` only advances
+by PRs the user has reviewed and merged; Claude opens PRs but does not merge
+them.
+
+- **Branch naming:** `feature/<name>-<tier>` with tier suffixes `db` / `api` /
+  `frontend`, e.g. `feature/call-auditing-db`, `feature/call-auditing-api`,
+  `feature/call-auditing-frontend`. Single-tier changes may drop the suffix
+  (`feature/<name>`).
+- **Multi-tier features use stacked branches:** `feature/<name>-db` branches
+  off `main`, `feature/<name>-api` off the db branch, and
+  `feature/<name>-frontend` off the api branch. Each PR then shows only its
+  own tier's diff, and each tier builds and tests against the tier beneath it.
+- **PRs open together, after testing.** Implement and test all tiers first
+  (each tier's build + tests green), then open all the PRs at once. Each PR
+  description states the merge order (DB → API → FE) and links the other PRs
+  in the stack. After a lower PR merges, retarget the next PR onto `main`
+  (GitHub does this automatically when the merged base branch is deleted).
+- **Merge order doubles as deployment order.** Merging DB → API → FE fires the
+  path-filtered deploy workflows one tier at a time in dependency order — this
+  is option (a) from the Deployment ordering caveat and is the standard
+  process for additive changes. For contract/removal releases, reverse the
+  stack (FE → API → DB) per that section.
+
 ## Working agreement for Claude Code
 
-- **Work one tier at a time.** Scaffold, verify it builds, commit, then move on.
+- **All work happens on branches** per the Branching & pull requests section —
+  finished, tested work is handed over as PRs for the user to review and
+  approve, never committed to `main`.
+- **Work one tier at a time.** Scaffold, verify it builds, commit to that
+  tier's branch, then move on.
   Do not wire up auth, endpoints, and components in the same pass as scaffolding.
 - **Use real tooling to scaffold** (`npm create vite`, `dotnet new`) rather than
   hand-writing project files, so structure is idiomatic.

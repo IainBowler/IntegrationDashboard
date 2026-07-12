@@ -122,6 +122,9 @@ api/
 ├── Program.cs            # composition root: DI, auth, one Map line per resource
 ├── Endpoints/            # one MapXxxEndpoints class per resource
 ├── Services/             # business logic + interfaces (unit-test target)
+│   ├── Auth/             # OIDC providers, JWT minting, refresh tokens
+│   ├── Integrations/     # IIntegrationConnector + per-integration connectors
+│   └── IntegrationCalls/ # call auditing: recorder, redactor, recording handler
 └── Contracts/            # request/response DTOs
 ```
 
@@ -162,6 +165,95 @@ Implementation:
   environment variable (configured in Azure Static Web Apps → Configuration →
   Application settings). Locally, set it in `frontend/.env.local`.
   Tests hardcode `http://localhost:3000` via `vitest/config` `test.env`.
+
+### Integrations pages
+The dashboard's Integrations section lists integrations **from the API**
+(`GET /api/integrations`, backed by `dbo.Integration` — nothing hardcoded in
+the frontend) with a Details button per integration navigating to
+`/integrations/{name}` (protected, inside Layout).
+`frontend/src/pages/IntegrationDetailPage.tsx` is one shared page for all
+integrations: endpoint-check buttons that call the integration's endpoints
+and display the returned HTTP status, plus a lifetime per-endpoint statistics
+table (calls, success rate, avg/max duration, last call time + status) from
+`GET /api/integrations/{name}/statistics`. Each completed check re-fetches
+the statistics so the numbers update immediately. API wrappers live in
+`frontend/src/api/integrations.ts`.
+
+## Integrations & call auditing
+
+External systems are surfaced through read-through connectors; every
+integration call is audited to the database in both directions.
+
+### Connector pattern (`api/Services/Integrations/`)
+- `IIntegrationConnector` is the seam and carries only `Name`. Data shapes are
+  integration-specific, so the endpoint layer depends on the concrete
+  connector; the interface exists for cross-integration enumeration.
+- **Salesforce** (`api/Services/Integrations/Salesforce/`) is the first
+  implementation: OAuth 2.0 JWT Bearer flow against a Developer Edition org
+  (token endpoint and JWT `aud` are `https://login.salesforce.com`, NOT
+  test.salesforce.com). `SalesforceTokenProvider` signs an RS256 assertion and
+  exchanges it for a session; the response's `instance_url` is the base for
+  all data calls — never hardcode it. Sessions are cached in `IMemoryCache`
+  (`Salesforce:TokenCacheMinutes`, default 30 — the JWT-bearer response has no
+  `expires_in`); a 401 on a data call invalidates the cache and retries once.
+- Secrets: `Salesforce:ClientId` / `Salesforce:Username` /
+  `Salesforce:PrivateKey` (PEM string) via User Secrets locally and Key Vault
+  in Azure — never appsettings, never the repo. Non-secret
+  `LoginUrl`/`ApiVersion`/`TokenCacheMinutes` live in appsettings.json.
+  Missing secrets → integration endpoints return 502 ProblemDetails; the app
+  still boots.
+- Integration endpoints live in a route group `/api/integrations/{name}` with
+  `.RequireAuthorization()` and the recording filter (below). Failures surface
+  as ProblemDetails — 502 for upstream/auth errors, 504 for timeouts — via a
+  single categorised `SalesforceApiException`; never an unhandled 500. Org
+  gotcha: External Client Apps require the `refresh_token, offline_access`
+  OAuth scope for the JWT bearer flow even though it issues no refresh token.
+
+### Call auditing (`dbo.IntegrationCall`)
+- Every call is recorded in both directions; `CorrelationId`
+  (= `Activity.Current.TraceId`) links an inbound request to the outbound
+  calls it triggered.
+- Two seams, both feeding one recorder:
+  `IntegrationCallRecordingHandler` (a `DelegatingHandler` chained onto each
+  integration's typed HttpClients — outbound) and
+  `IntegrationCallRecordingFilter` (an endpoint filter on the integration's
+  route group — inbound; it runs after authorization, so anonymous 401s are
+  never recorded, by design).
+- Endpoint identity: inbound = last path segment; outbound = the call site
+  tags its `HttpRequestMessage` via `IntegrationCallOptions.EndpointName`.
+  Names must match seeded `dbo.IntegrationEndpoint` rows; the INSERT resolves
+  the FK and unmatched names save with a NULL link — **the audit write must
+  never fail or block the audited call**. `IntegrationName` stays denormalised
+  on the row for the same reason.
+- All saves go through `IntegrationCallRecorder`: it redacts
+  (`IntegrationCallRedactor` — credential form fields, token JSON properties,
+  bearer values, PEM blocks, and a JWT-shaped catch-all) and then saves,
+  swallowing + logging any failure. **Headers are never stored** (method, URL,
+  bodies only), so the Authorization header cannot leak through a redaction
+  gap.
+- `dbo.Integration` / `dbo.IntegrationEndpoint` are seeded by the DACPAC
+  post-deployment script (`database/Scripts/Script.PostDeployment.sql`,
+  declared via `<PostDeploy>` in the sqlproj). It is idempotent and runs on
+  **every** publish — prod, the e2e workflow, and the Testcontainers deploy in
+  the data tests — so seed data is automatically present everywhere,
+  including CI data tests.
+- The `/api/integrations` meta surface (list + statistics,
+  `api/Endpoints/IntegrationsEndpoints.cs`) is deliberately **not** audited —
+  reading statistics must not pollute the statistics.
+
+### Adding a new integration (checklist)
+1. **Database first:** add `Integration` + `IntegrationEndpoint` seed rows to
+   the post-deployment script; deploy.
+2. **API:** options class + secrets; connector (and token provider if needed)
+   as typed HttpClients, each chained with a recording handler named for the
+   integration; tag outbound requests with their endpoint name; route group
+   `/api/integrations/{name}` with `.RequireAuthorization()` and a recording
+   filter; register in Program.cs; forward the connector to
+   `IIntegrationConnector`.
+3. **Frontend:** the dashboard list and statistics table pick the new
+   integration up automatically from the API. The detail page's check buttons
+   are currently wired to auth/accounts-style endpoints — generalise them when
+   a second integration's endpoints differ.
 
 ## Deployment / CI-CD
 

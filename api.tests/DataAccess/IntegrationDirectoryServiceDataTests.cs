@@ -18,7 +18,7 @@ public class IntegrationDirectoryServiceDataTests
         _sut = new IntegrationDirectoryService(fixture.ConnectionString);
     }
 
-    [DatabaseFact(DisplayName = "the post-deployment script seeded salesforce and its four endpoints")]
+    [DatabaseFact(DisplayName = "the post-deployment script seeded salesforce and its six endpoints")]
     public async Task PostDeployment_SeededSalesforceMetadata()
     {
         await using var conn = new SqlConnection(_fixture.ConnectionString);
@@ -35,8 +35,10 @@ public class IntegrationDirectoryServiceDataTests
         [
             ("auth", "Inbound"),
             ("accounts", "Inbound"),
+            ("leads", "Inbound"),
             ("token", "Outbound"),
             ("query", "Outbound"),
+            ("create-lead", "Outbound"),
         ]);
     }
 

@@ -25,16 +25,21 @@ Leads server-side.
 
 ## Architecture
 
-Three independently deployable tiers:
+Three independently deployable tiers (boxed below), plus the external systems
+they talk to — Okta for identity and Salesforce as the first audited
+integration:
 
 ```mermaid
 graph LR
     User([User / Browser])
     Okta[Okta<br/>OIDC Provider]
-    SWA[Azure Static Web Apps<br/>React + TypeScript SPA]
-    API[Azure App Service<br/>.NET Core Web API]
-    DB[(Azure SQL)]
     SF[Salesforce<br/>REST API]
+
+    subgraph Tiers[The three deployable tiers]
+        SWA[Azure Static Web Apps<br/>React + TypeScript SPA]
+        API[Azure App Service<br/>.NET Core Web API]
+        DB[(Azure SQL)]
+    end
 
     User -->|1 Load SPA| SWA
     User -->|2 GET /auth/login/okta| API

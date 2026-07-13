@@ -3,6 +3,7 @@ name: E2E
 # End-to-end: real browser -> real SPA -> real API -> real SQL Server, with
 # only the external IdP replaced by the API's gated test provider (no Okta
 # credentials in CI). Spans all three tiers, so it triggers on any of them.
+# Also callable from pr-ci.yml so PRs run the same suite without duplication.
 on:
   push:
     branches:
@@ -12,6 +13,7 @@ on:
       - 'api/**'
       - 'database/**'
       - '.github/workflows/e2e.yml'
+  workflow_call:
   workflow_dispatch:
 
 permissions:

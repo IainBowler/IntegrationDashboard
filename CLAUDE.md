@@ -360,9 +360,20 @@ PR and must pass before merge.
   flow above (deploy DACPAC -> assert).
 
 ### CI
-- One GitHub Actions job (or step set) per tier runs that tier's tests,
-  path-filtered as with deployment.
-- A PR cannot merge with failing tests.
+- `pr-ci.yml` runs on every PR to main: a paths-filter job detects which tiers
+  changed, then per-tier jobs run only for changed tiers (DACPAC build; dotnet
+  test including the Testcontainers data tests — database changes also trigger
+  the API suite since the data tests deploy the DACPAC; Vitest + production
+  build). The e2e suite is reused via `workflow_call` from `e2e.yml` when any
+  tier changed. All jobs feed one always-reporting **"CI gate"** job — the only
+  required status check, so path-filtered jobs can skip without wedging the PR.
+  Docs-only PRs pass the gate with every tier job skipped.
+- A PR cannot merge with failing tests: "CI gate" is required by the
+  main-protection ruleset, which also requires PRs for all changes to main
+  (no direct pushes, admin bypass via PR only) and blocks force-pushes and
+  branch deletion.
+- The per-tier deploy workflows still run their tests on push to main after
+  merge, path-filtered as with deployment.
 
 ## Conventions & commands
 

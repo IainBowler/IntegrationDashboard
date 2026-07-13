@@ -1,0 +1,130 @@
+name: PR CI
+
+# PR merge gate: per-tier test jobs run only when their tier changed, all
+# feeding the single always-reporting "CI gate" job that the main-protection
+# ruleset requires. The gate job must never be path-filtered away — a required
+# check that doesn't report leaves the PR unmergeable forever, which is why
+# tier detection happens in a job (dorny/paths-filter) instead of workflow-level
+# `paths:` filters.
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  checks: write
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  changes:
+    name: Detect changed tiers
+    runs-on: ubuntu-latest
+    outputs:
+      database: ${{ steps.filter.outputs.database }}
+      api: ${{ steps.filter.outputs.api }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            database:
+              - 'database/**'
+            api:
+              - 'api/**'
+              - 'api.tests/**'
+            frontend:
+              - 'frontend/**'
+
+  database:
+    name: Database build
+    needs: changes
+    if: needs.changes.outputs.database == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build DACPAC
+        run: dotnet build database/IntegrationDashboard.Database.sqlproj -c Release
+
+  api:
+    name: API tests
+    needs: changes
+    # database changes also run the API suite: the Testcontainers data tests
+    # deploy the DACPAC and assert on the seed, so they guard schema changes.
+    if: needs.changes.outputs.api == 'true' || needs.changes.outputs.database == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Test
+        run: dotnet test ./api.tests --configuration Release --logger "trx"
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: API PR Tests
+          path: '**/TestResults/*.trx'
+          reporter: dotnet-trx
+
+  frontend:
+    name: Frontend tests and build
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Test
+        run: npm run test
+        working-directory: frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+
+  e2e:
+    name: e2e
+    needs: changes
+    if: >-
+      needs.changes.outputs.database == 'true' ||
+      needs.changes.outputs.api == 'true' ||
+      needs.changes.outputs.frontend == 'true'
+    uses: ./.github/workflows/e2e.yml
+
+  ci-gate:
+    name: CI gate
+    needs: [changes, database, api, frontend, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any tier job failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+      - name: All good
+        run: echo "All triggered tier jobs passed (skipped tiers are unaffected by this PR)."

@@ -185,4 +185,138 @@ public class SalesforceConnectorTests
         (await act.Should().ThrowAsync<SalesforceApiException>())
             .Which.Failure.Should().Be(SalesforceFailure.UpstreamError);
     }
+
+    // Real Salesforce create envelope, as returned by POST /sobjects/Lead.
+    private const string LeadCreatedJson = """{"id":"00QA000001abcDE","success":true,"errors":[]}""";
+
+    private static readonly CreateSalesforceLeadRequest SampleLead = new(
+        "Sample-abc123", "Integration Dashboard", "Dashboard", "sample-abc123@example.com");
+
+    [Fact(DisplayName = "the Lead create POSTs to the session's instance_url with the session's bearer token")]
+    public async Task CreateLead_PostsToSobjectsLeadWithBearerToken()
+    {
+        var handler = new StubHttpHandler(_ => StubHttpHandler.Json(HttpStatusCode.Created, LeadCreatedJson));
+        var (connector, _) = CreateConnector(handler);
+
+        await connector.CreateLeadAsync(SampleLead);
+
+        var (request, body) = handler.Requests.Single();
+        request.Method.Should().Be(HttpMethod.Post);
+        request.RequestUri!.ToString().Should().Be($"{InstanceUrl}/services/data/v66.0/sobjects/Lead");
+        request.Headers.Authorization!.Scheme.Should().Be("Bearer");
+        request.Headers.Authorization.Parameter.Should().Be(AccessToken);
+        request.Options.TryGetValue(IntegrationCallOptions.EndpointName, out var endpointName)
+            .Should().BeTrue();
+        endpointName.Should().Be("create-lead");
+        body.Should().Contain("\"LastName\":\"Sample-abc123\"")
+            .And.Contain("\"Company\":\"Integration Dashboard\"")
+            .And.Contain("\"FirstName\":\"Dashboard\"")
+            .And.Contain("\"Email\":\"sample-abc123@example.com\"");
+    }
+
+    [Fact(DisplayName = "unset optional fields are omitted from the payload, not sent as explicit nulls")]
+    public async Task CreateLead_OmitsNullOptionalFields()
+    {
+        var handler = new StubHttpHandler(_ => StubHttpHandler.Json(HttpStatusCode.Created, LeadCreatedJson));
+        var (connector, _) = CreateConnector(handler);
+
+        await connector.CreateLeadAsync(new CreateSalesforceLeadRequest("Sample-abc123", "Integration Dashboard"));
+
+        // Salesforce treats an explicit null as a field write, so absence matters.
+        handler.Requests.Single().Body.Should().NotContain("FirstName").And.NotContain("Email");
+    }
+
+    [Fact(DisplayName = "a created Lead maps to a clean DTO — the success/errors envelope never leaks")]
+    public async Task CreateLead_MapsCreatedIdToDto()
+    {
+        var handler = new StubHttpHandler(_ => StubHttpHandler.Json(HttpStatusCode.Created, LeadCreatedJson));
+        var (connector, _) = CreateConnector(handler);
+
+        var created = await connector.CreateLeadAsync(SampleLead);
+
+        created.Should().Be(new SalesforceLeadCreatedDto("00QA000001abcDE"));
+    }
+
+    [Fact(DisplayName = "a 401 invalidates the cached session and retries once with the same body")]
+    public async Task CreateLead_On401_InvalidatesAndRetriesOnceWithSameBody()
+    {
+        var calls = 0;
+        var handler = new StubHttpHandler(_ => ++calls == 1
+            ? StubHttpHandler.Json(HttpStatusCode.Unauthorized, """[{"errorCode":"INVALID_SESSION_ID"}]""")
+            : StubHttpHandler.Json(HttpStatusCode.Created, LeadCreatedJson));
+        var (connector, tokenProvider) = CreateConnector(handler);
+
+        var created = await connector.CreateLeadAsync(SampleLead);
+
+        created.Id.Should().Be("00QA000001abcDE");
+        handler.Requests.Should().HaveCount(2);
+        handler.Requests[1].Body.Should().Be(handler.Requests[0].Body,
+            "the retry must re-send the full payload");
+        tokenProvider.Received(1).Invalidate();
+    }
+
+    [Fact(DisplayName = "a second consecutive 401 gives up with AuthFailed — no retry loop")]
+    public async Task CreateLead_OnRepeated401_ThrowsAuthFailedAfterExactlyTwoAttempts()
+    {
+        var handler = new StubHttpHandler(_ =>
+            StubHttpHandler.Json(HttpStatusCode.Unauthorized, """[{"errorCode":"INVALID_SESSION_ID"}]"""));
+        var (connector, _) = CreateConnector(handler);
+
+        var act = () => connector.CreateLeadAsync(SampleLead);
+
+        (await act.Should().ThrowAsync<SalesforceApiException>())
+            .Which.Failure.Should().Be(SalesforceFailure.AuthFailed);
+        handler.Requests.Should().HaveCount(2);
+    }
+
+    [Fact(DisplayName = "a Salesforce 400 (org validation) surfaces as UpstreamError — we pre-validate, so it's config drift")]
+    public async Task CreateLead_OnSalesforce400_ThrowsUpstreamError()
+    {
+        var handler = new StubHttpHandler(_ => StubHttpHandler.Json(HttpStatusCode.BadRequest,
+            """[{"message":"Required fields are missing: [Company]","errorCode":"REQUIRED_FIELD_MISSING","fields":["Company"]}]"""));
+        var (connector, _) = CreateConnector(handler);
+
+        var act = () => connector.CreateLeadAsync(SampleLead);
+
+        var ex = (await act.Should().ThrowAsync<SalesforceApiException>()).Which;
+        ex.Failure.Should().Be(SalesforceFailure.UpstreamError);
+        ex.Message.Should().Contain("400");
+    }
+
+    [Fact(DisplayName = "an HttpClient timeout on create surfaces as Timeout")]
+    public async Task CreateLead_WhenRequestTimesOut_ThrowsTimeout()
+    {
+        var handler = new StubHttpHandler(_ => throw new TaskCanceledException());
+        var (connector, _) = CreateConnector(handler);
+
+        var act = () => connector.CreateLeadAsync(SampleLead);
+
+        (await act.Should().ThrowAsync<SalesforceApiException>())
+            .Which.Failure.Should().Be(SalesforceFailure.Timeout);
+    }
+
+    [Fact(DisplayName = "a network failure on create surfaces as UpstreamError")]
+    public async Task CreateLead_WhenNetworkFails_ThrowsUpstreamError()
+    {
+        var handler = new StubHttpHandler(_ => throw new HttpRequestException("connection refused"));
+        var (connector, _) = CreateConnector(handler);
+
+        var act = () => connector.CreateLeadAsync(SampleLead);
+
+        (await act.Should().ThrowAsync<SalesforceApiException>())
+            .Which.Failure.Should().Be(SalesforceFailure.UpstreamError);
+    }
+
+    [Fact(DisplayName = "a 201 without an id surfaces as UpstreamError, not a crash")]
+    public async Task CreateLead_OnMalformedBody_ThrowsUpstreamError()
+    {
+        var handler = new StubHttpHandler(_ =>
+            StubHttpHandler.Json(HttpStatusCode.Created, """{"success":true,"errors":[]}"""));
+        var (connector, _) = CreateConnector(handler);
+
+        var act = () => connector.CreateLeadAsync(SampleLead);
+
+        (await act.Should().ThrowAsync<SalesforceApiException>())
+            .Which.Failure.Should().Be(SalesforceFailure.UpstreamError);
+    }
 }

@@ -155,6 +155,58 @@ public class IntegrationCallRecordingTests : IClassFixture<WebApplicationFactory
         saved.Should().BeEmpty();
     }
 
+    private static HttpRequestMessage PostLead(object body, string? bearerToken = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/salesforce/leads")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(body),
+        };
+        if (bearerToken is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        }
+        return request;
+    }
+
+    [Fact(DisplayName = "a lead create records the request body and the created id — traceable in both directions")]
+    public async Task PostLeads_RecordsInboundRowWithRequestAndResponseBody()
+    {
+        var (client, saved) = CreateClient(new StubHttpHandler(_ =>
+            StubHttpHandler.Json(HttpStatusCode.Created, """{"id":"00QA000001abcDE","success":true,"errors":[]}""")));
+
+        var response = await client.SendAsync(PostLead(new
+        {
+            lastName = "Sample-trace1",
+            company = "Integration Dashboard",
+            email = "sample-trace1@example.com",
+        }, TestAuth.MintAccessToken()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var record = saved.Should().ContainSingle().Which;
+        record.Direction.Should().Be(IntegrationCallDirection.Inbound);
+        record.EndpointName.Should().Be("leads");
+        record.Method.Should().Be("POST");
+        record.StatusCode.Should().Be(201);
+        record.RequestBody.Should().Contain("Sample-trace1").And.Contain("Integration Dashboard");
+        record.ResponseBody.Should().Contain("00QA000001abcDE");
+    }
+
+    [Fact(DisplayName = "a rejected lead create records the 400 outcome with the offending request body")]
+    public async Task PostLeads_WhenValidationFails_Records400WithRequestBody()
+    {
+        var (client, saved) = CreateClient(
+            new StubHttpHandler(_ => throw new InvalidOperationException("must not be reached")));
+
+        var response = await client.SendAsync(
+            PostLead(new { lastName = "", company = "Integration Dashboard" }, TestAuth.MintAccessToken()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var record = saved.Should().ContainSingle().Which;
+        record.EndpointName.Should().Be("leads");
+        record.StatusCode.Should().Be(400);
+        record.RequestBody.Should().Contain("Integration Dashboard");
+    }
+
     [Fact(DisplayName = "a failing save does not fail the endpoint")]
     public async Task AuthCheck_WhenSaveFails_StillReturnsOk()
     {

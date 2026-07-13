@@ -68,6 +68,14 @@ public class IntegrationCallRedactorTests
         IntegrationCallRedactor.Redact(body).Should().Be(body);
     }
 
+    [Fact(DisplayName = "a lead payload passes through unchanged — business data (incl. email) is stored as-is")]
+    public void Redact_LeadJson_IsUntouched()
+    {
+        var body = """{"lastName":"Sample-abc123","company":"Integration Dashboard","firstName":"Dashboard","email":"sample-abc123@example.com"}""";
+
+        IntegrationCallRedactor.Redact(body).Should().Be(body);
+    }
+
     [Theory(DisplayName = "null and empty payloads pass through as-is")]
     [InlineData(null)]
     [InlineData("")]

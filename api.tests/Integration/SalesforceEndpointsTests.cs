@@ -186,4 +186,98 @@ public class SalesforceEndpointsTests : IClassFixture<WebApplicationFactory<Prog
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         problem!.Status.Should().Be(StatusCodes.Status504GatewayTimeout);
     }
+
+    private const string LeadsUrl = "/api/integrations/salesforce/leads";
+    private const string LeadCreatedJson = """{"id":"00QA000001abcDE","success":true,"errors":[]}""";
+
+    private static HttpRequestMessage PostLead(object body, string? bearerToken = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, LeadsUrl) { Content = JsonContent.Create(body) };
+        if (bearerToken is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        }
+        return request;
+    }
+
+    private static object ValidLead() => new
+    {
+        lastName = "Sample-abc123",
+        company = "Integration Dashboard",
+        firstName = "Dashboard",
+        email = "sample-abc123@example.com",
+    };
+
+    [Fact(DisplayName = "POST /api/integrations/salesforce/leads 401s without a token — before any Salesforce call")]
+    public async Task Leads_WithoutToken_ReturnsUnauthorized()
+    {
+        var handler = new StubHttpHandler(_ => throw new InvalidOperationException("must not be reached"));
+        var client = CreateClient(handler);
+
+        var response = await client.SendAsync(PostLead(ValidLead()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        handler.Requests.Should().BeEmpty();
+    }
+
+    [Fact(DisplayName = "POST /api/integrations/salesforce/leads returns 201 with the created id for a valid token")]
+    public async Task Leads_WithValidToken_Returns201WithCreatedId()
+    {
+        var handler = new StubHttpHandler(_ => StubHttpHandler.Json(HttpStatusCode.Created, LeadCreatedJson));
+        var client = CreateClient(handler);
+
+        var response = await client.SendAsync(PostLead(ValidLead(), TestAuth.MintAccessToken()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var raw = await response.Content.ReadAsStringAsync();
+        raw.Should().NotContain("success", "raw Salesforce JSON must not leak to callers");
+        var created = await response.Content.ReadFromJsonAsync<SalesforceLeadCreatedDto>();
+        created.Should().Be(new SalesforceLeadCreatedDto("00QA000001abcDE"));
+
+        handler.Requests.Single().Request.Headers.Authorization!.Parameter
+            .Should().Be("sf-access-token", "the Salesforce session token, not the caller's JWT, goes upstream");
+    }
+
+    [Fact(DisplayName = "blank required fields return a 400 ValidationProblem — before any Salesforce call")]
+    public async Task Leads_WithBlankRequiredFields_Returns400ValidationProblem()
+    {
+        var handler = new StubHttpHandler(_ => throw new InvalidOperationException("must not be reached"));
+        var client = CreateClient(handler);
+
+        var response = await client.SendAsync(
+            PostLead(new { lastName = "", company = "  " }, TestAuth.MintAccessToken()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        problem!.Errors.Keys.Should().BeEquivalentTo("lastName", "company");
+        handler.Requests.Should().BeEmpty();
+    }
+
+    [Fact(DisplayName = "a Salesforce failure on create surfaces as a 502 ProblemDetails, not an unhandled 500")]
+    public async Task Leads_WhenSalesforceFails_Returns502Problem()
+    {
+        var handler = new StubHttpHandler(_ =>
+            StubHttpHandler.Json(HttpStatusCode.InternalServerError, """[{"errorCode":"UNKNOWN_EXCEPTION"}]"""));
+        var client = CreateClient(handler);
+
+        var response = await client.SendAsync(PostLead(ValidLead(), TestAuth.MintAccessToken()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem!.Title.Should().Be("Salesforce request failed");
+    }
+
+    [Fact(DisplayName = "a Salesforce timeout on create surfaces as a 504 ProblemDetails")]
+    public async Task Leads_WhenSalesforceTimesOut_Returns504Problem()
+    {
+        var handler = new StubHttpHandler(_ => throw new TaskCanceledException());
+        var client = CreateClient(handler);
+
+        var response = await client.SendAsync(PostLead(ValidLead(), TestAuth.MintAccessToken()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.GatewayTimeout);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem!.Status.Should().Be(StatusCodes.Status504GatewayTimeout);
+    }
 }

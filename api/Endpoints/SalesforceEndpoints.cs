@@ -15,6 +15,7 @@ public static class SalesforceEndpoints
 
         group.MapGet("/auth", CheckAuth).WithName("CheckSalesforceAuth");
         group.MapGet("/accounts", GetAccounts).WithName("GetSalesforceAccounts");
+        group.MapPost("/leads", CreateLead).WithName("CreateSalesforceLead");
 
         return routes;
     }
@@ -41,6 +42,30 @@ public static class SalesforceEndpoints
         try
         {
             return TypedResults.Ok(await connector.GetAccountsAsync(ct));
+        }
+        catch (SalesforceApiException ex)
+        {
+            return Problem(ex);
+        }
+    }
+
+    private static async Task<Results<Created<SalesforceLeadCreatedDto>, ValidationProblem, ProblemHttpResult>> CreateLead(
+        CreateSalesforceLeadRequest request,
+        SalesforceConnector connector,
+        CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(request.LastName))
+            errors["lastName"] = ["LastName is required."];
+        if (string.IsNullOrWhiteSpace(request.Company))
+            errors["company"] = ["Company is required."];
+        if (errors.Count > 0)
+            return TypedResults.ValidationProblem(errors);
+
+        try
+        {
+            // No Location header: there is no GET /leads/{id} route to point at.
+            return TypedResults.Created((string?)null, await connector.CreateLeadAsync(request, ct));
         }
         catch (SalesforceApiException ex)
         {

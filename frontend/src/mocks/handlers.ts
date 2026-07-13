@@ -111,6 +111,26 @@ export const handlers = [
           lastCalledAtUtc: '2026-07-12T09:05:01Z',
           lastStatusCode: 502,
         },
+        {
+          endpointName: 'leads',
+          direction: 'Inbound',
+          totalCalls: 2,
+          successCount: 2,
+          avgDurationMs: 310,
+          maxDurationMs: 450,
+          lastCalledAtUtc: '2026-07-12T09:06:00Z',
+          lastStatusCode: 201,
+        },
+        {
+          endpointName: 'create-lead',
+          direction: 'Outbound',
+          totalCalls: 2,
+          successCount: 2,
+          avgDurationMs: 290,
+          maxDurationMs: 430,
+          lastCalledAtUtc: '2026-07-12T09:06:00Z',
+          lastStatusCode: 201,
+        },
       ],
     })
   }),
@@ -136,6 +156,13 @@ export const handlers = [
         lastModifiedDate: '2026-07-01T12:34:56+00:00',
       },
     ])
+  }),
+
+  http.post(`${API_BASE}/api/integrations/salesforce/leads`, ({ request }) => {
+    if (!hasBearerToken(request)) {
+      return new HttpResponse(null, { status: 401 })
+    }
+    return HttpResponse.json({ id: '00QA000001abcDE' }, { status: 201 })
   }),
 
   http.get(`${API_BASE}/page-visits/summary`, ({ request }) => {

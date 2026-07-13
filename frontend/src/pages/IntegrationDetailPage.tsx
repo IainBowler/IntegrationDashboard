@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import {
   checkIntegrationAuth,
+  createIntegrationLead,
   fetchIntegrationAccounts,
   getIntegrationStatistics,
 } from '../api/integrations'
@@ -85,6 +86,12 @@ export function IntegrationDetailPage() {
           label="Accounts endpoint"
           buttonText="Call accounts endpoint"
           call={() => fetchIntegrationAccounts(name)}
+          onComplete={loadStats}
+        />
+        <EndpointCheck
+          label="Leads endpoint"
+          buttonText="Create sample lead"
+          call={() => createIntegrationLead(name)}
           onComplete={loadStats}
         />
       </section>

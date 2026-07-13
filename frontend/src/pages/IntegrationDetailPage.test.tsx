@@ -27,6 +27,7 @@ describe('IntegrationDetailPage', () => {
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Auth endpoint status')).toHaveTextContent('—')
     expect(screen.getByLabelText('Accounts endpoint status')).toHaveTextContent('—')
+    expect(screen.getByLabelText('Leads endpoint status')).toHaveTextContent('—')
   })
 
   it('calls the auth endpoint and shows its status code', async () => {
@@ -45,6 +46,29 @@ describe('IntegrationDetailPage', () => {
     await userEvent.click(button)
 
     expect(await screen.findByText('HTTP 200')).toBeInTheDocument()
+  })
+
+  it('creates a sample lead and shows the created status code', async () => {
+    renderAt('/integrations/salesforce')
+    const button = await screen.findByRole('button', { name: 'Create sample lead' })
+
+    await userEvent.click(button)
+
+    expect(await screen.findByText('HTTP 201')).toBeInTheDocument()
+  })
+
+  it('shows the failure status code when the lead create fails', async () => {
+    server.use(
+      http.post('http://localhost:3000/api/integrations/salesforce/leads', () =>
+        HttpResponse.json({ title: 'Salesforce request failed' }, { status: 502 }),
+      ),
+    )
+    renderAt('/integrations/salesforce')
+    const button = await screen.findByRole('button', { name: 'Create sample lead' })
+
+    await userEvent.click(button)
+
+    expect(await screen.findByText('HTTP 502')).toBeInTheDocument()
   })
 
   it('shows the failure status code when an endpoint fails', async () => {
@@ -66,8 +90,8 @@ describe('IntegrationDetailPage', () => {
 
     const statistics = await screen.findByRole('region', { name: 'Statistics' })
     const rows = await within(statistics).findAllByRole('row')
-    // header + the four endpoints from the mock
-    expect(rows).toHaveLength(5)
+    // header + the six endpoints from the mock
+    expect(rows).toHaveLength(7)
 
     const authRow = within(statistics).getByRole('row', { name: /^auth / })
     expect(authRow).toHaveTextContent('Inbound')

@@ -48,3 +48,23 @@ export async function fetchIntegrationAccounts(name: string): Promise<number> {
   const res = await authFetch(`${API_BASE}/api/integrations/${name}/accounts`)
   return res.status
 }
+
+/**
+ * Posts a generated sample lead and returns the HTTP status code. The suffix
+ * appears in the created record AND the audited request bodies, so any lead
+ * in the org can be traced back to the exact calls that created it.
+ */
+export async function createIntegrationLead(name: string): Promise<number> {
+  const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+  const res = await authFetch(`${API_BASE}/api/integrations/${name}/leads`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      lastName: `Sample-${suffix}`,
+      company: 'Integration Dashboard',
+      firstName: 'Dashboard',
+      email: `sample-${suffix}@example.com`,
+    }),
+  })
+  return res.status
+}

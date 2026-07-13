@@ -1,8 +1,8 @@
 # Interview Dashboard
 
-A small, full-stack dashboard application built as a portfolio / interview
-piece. The emphasis is on backend engineering, clean tier separation, OIDC
-authentication, and a high level of automated test coverage.
+A small, full-stack dashboard application built as a portfolio piece with
+Claude Code. The emphasis is on backend engineering, clean tier separation,
+OIDC authentication, and a high level of automated test coverage.
 
 > **Status:** in active development.
 
@@ -15,17 +15,31 @@ rules, validation, and data access live server-side where they can be tested and
 secured. The project also exists to demonstrate a disciplined approach to
 **automated testing** and **CI/CD**, not just feature code.
 
+Current feature set: OIDC sign-in with a protected dashboard, page-visit
+tracking (every page shows its running view count), and an **integrations**
+section — the dashboard lists integrations straight from the database, and
+each integration has a detail page with live endpoint checks and lifetime
+per-endpoint statistics computed from a full audit trail of every integration
+call. Salesforce is the first integration: the API reads Accounts and creates
+Leads server-side.
+
 ## Architecture
 
-Three independently deployable tiers:
+Three independently deployable tiers (boxed below), plus the external systems
+they talk to — Okta for identity and Salesforce as the first audited
+integration:
 
 ```mermaid
 graph LR
     User([User / Browser])
     Okta[Okta<br/>OIDC Provider]
-    SWA[Azure Static Web Apps<br/>React + TypeScript SPA]
-    API[Azure App Service<br/>.NET Core Web API]
-    DB[(Azure SQL)]
+    SF[Salesforce<br/>REST API]
+
+    subgraph Tiers[The three deployable tiers]
+        SWA[Azure Static Web Apps<br/>React + TypeScript SPA]
+        API[Azure App Service<br/>.NET Core Web API]
+        DB[(Azure SQL)]
+    end
 
     User -->|1 Load SPA| SWA
     User -->|2 GET /auth/login/okta| API
@@ -35,6 +49,7 @@ graph LR
     User -->|6 Exchange for API-minted JWT| API
     User -->|7 Requests + Bearer token| API
     API -->|8 Query| DB
+    API -->|9 Integration calls, audited to SQL| SF
 ```
 
 **Request flow:** the browser loads the static SPA from Azure Static Web Apps.
@@ -50,14 +65,15 @@ no secrets.
 
 ## Tech stack
 
-| Tier      | Technology                                                        |
-|-----------|-------------------------------------------------------------------|
-| Frontend  | Vite, React, TypeScript, react-router (no auth SDK)               |
-| API       | .NET Core Web API (C#), OIDC client to Okta, JWT bearer auth      |
-| Database  | SDK-style `Microsoft.Build.Sql` project (.sqlproj), Azure SQL     |
-| Auth      | Okta (OIDC / OAuth 2.0)                                            |
-| Hosting   | Azure Static Web Apps (frontend), Azure App Service (API)         |
-| CI/CD     | GitHub Actions, path-filtered per tier                            |
+| Tier         | Technology                                                          |
+|--------------|----------------------------------------------------------------------|
+| Frontend     | Vite, React, TypeScript, react-router (no auth SDK)                 |
+| API          | .NET Core Web API (C#), OIDC client to Okta, JWT bearer auth        |
+| Database     | SDK-style `Microsoft.Build.Sql` project (.sqlproj), Azure SQL       |
+| Auth         | Okta (OIDC / OAuth 2.0)                                              |
+| Integrations | Salesforce REST API (server-side OAuth 2.0 JWT bearer flow)         |
+| Hosting      | Azure Static Web Apps (frontend), Azure App Service (API)           |
+| CI/CD        | GitHub Actions — required PR test gate + path-filtered per-tier deploys |
 
 ## Repository structure
 
@@ -66,7 +82,7 @@ no secrets.
 ├── frontend/            # Vite + React + TypeScript SPA
 ├── api/                 # .NET Core Web API
 ├── database/            # Microsoft.Build.Sql project (DACPAC)
-├── .github/workflows/   # Three path-filtered deployment workflows
+├── .github/workflows/   # Per-tier deploy workflows + PR CI gate + e2e suite
 ├── CLAUDE.md            # Project context for AI-assisted development
 └── README.md
 ```
@@ -96,12 +112,43 @@ login/callback/token flow is provider-agnostic.
 Request authentication is stateless JWT validation; refresh tokens and users
 are the only server-side auth state, held in Azure SQL.
 
+## Integrations & call auditing
+
+External systems are surfaced through server-side connectors, and the
+dashboard's integration pages are **entirely data-driven** — the integration
+list, endpoint metadata, and statistics all come from the database, with
+nothing hardcoded in the frontend.
+
+- **Salesforce** is the first integration. The API authenticates with the
+  OAuth 2.0 JWT bearer flow (an RS256-signed assertion exchanged for a session,
+  entirely server-side; secrets live in Azure Key Vault), reads Accounts via
+  SOQL, and creates Leads through the REST `sobjects` endpoint. Upstream
+  failures surface as 502/504 ProblemDetails responses — never an unhandled 500.
+- **Every integration call is audited, in both directions.** Inbound requests
+  to the API's integration endpoints and the outbound calls they trigger are
+  recorded to a single table and linked by a correlation ID, with method, URL,
+  status, duration, and request/response payloads. Payloads are redacted before
+  storage (credential fields, tokens, key material) and headers are never
+  stored, so secrets cannot leak into the audit trail. The audit write can
+  never fail or block the call it records.
+- Each integration's detail page has **live endpoint checks** — including
+  creating a sample Lead whose unique suffix makes the Salesforce record
+  traceable to the exact audited calls that created it — and a **lifetime
+  per-endpoint statistics table** (calls, success rate, avg/max duration, last
+  call) computed from the audit trail.
+
+Connectors implement a common seam, so adding another integration is a matter
+of seeding its endpoint metadata, writing a connector, and registering it — the
+dashboard picks it up automatically.
+
 ## Testing
 
 Testing is a first-class goal: the aim is to verify behaviour automatically and
 keep manual testing to a minimum. The suite follows a **test pyramid** — many
 fast unit tests, fewer integration tests, a small number of end-to-end tests —
-and runs in CI on every pull request.
+and runs in CI on every pull request behind a required **"CI gate"** status
+check: only the tiers a PR touches run their suites, and the PR cannot merge
+until the gate passes.
 
 - **Frontend:** Vitest + React Testing Library for unit/component tests, Mock
   Service Worker to stub API calls, and Playwright for critical-path end-to-end
@@ -123,15 +170,18 @@ workflow, so a change in one tier doesn't trigger the others.
 - **API** → Azure App Service (Basic B1 with Always On, to avoid cold starts).
 - **Database** → DACPAC published to Azure SQL.
 
-**Ordering for coordinated releases:** additive changes deploy
-**database → API → frontend**, so each tier is live only once the tier beneath it
-supports it. Breaking changes use expand/contract across separate releases, with
-destructive database cleanup deployed **last**. See `CLAUDE.md` for the full
-rule.
+**How changes land:** everything reaches `main` through pull requests — direct
+pushes are blocked by a branch ruleset, and the required **"CI gate"** status
+check must pass first. Multi-tier features are split into stacked per-tier PRs
+merged **database → API → frontend**, so merge order doubles as deployment
+order and each tier is live only once the tier beneath it supports it. Breaking
+changes use expand/contract across separate releases, with destructive database
+cleanup deployed **last**. See `CLAUDE.md` for the full rules.
 
 ## Local development
 
-**Prerequisites:** Node.js 20+, the .NET SDK, access to a SQL Server instance
+**Prerequisites:** Node.js 20+, the .NET SDK, Docker (the API test suite spins
+up a real SQL Server via Testcontainers), access to a SQL Server instance
 (local or container), and an Okta developer account for auth configuration.
 
 ```bash
@@ -161,9 +211,10 @@ A few choices worth calling out, and why:
   no server to idle out, so the UI is always responsive; the API is hosted
   separately on a tier (B1 + Always On) that avoids cold starts. This split also
   mirrors a realistic production topology.
-- **Monorepo with path-filtered pipelines.** Cross-tier features land as one
-  atomic change and review, while each tier still deploys on its own when only it
-  changes.
+- **Monorepo with per-tier pipelines and stacked PRs.** Each tier deploys from
+  its own path-filtered workflow; cross-tier features land as stacked per-tier
+  PRs merged in dependency order, so review stays focused and merge order
+  doubles as deployment order.
 - **Stateless, JWT-validating API.** Standard OIDC, horizontally scalable, no
   session affinity required.
 - **Real-database integration tests.** Testing against actual SQL Server via
